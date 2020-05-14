@@ -55,15 +55,13 @@ class Job(BaseModel):
 
 
 def list_jobs():
-    jobs = tuple(client.list_jobs(parent))
-    for job in jobs:
-        print(job)
+    return tuple(client.list_jobs(parent))
 
 
 def get_job(name: str):
     full_name = client.job_path(PROJECT_ID, REGION, name)
     try:
-        client.get_job(full_name)
+        return client.get_job(full_name)
     except (BaseException, Exception) as e:
         error_message = get_error(e)
         raise JobRetrieveError(error_message)
@@ -78,10 +76,28 @@ def create_job(job: Job):
     """
 
     try:
-        client.create_job(parent, job.to_dict())
+        return client.create_job(parent, job.to_dict())
     except (BaseException, Exception) as e:
         error_message = get_error(e)
         raise JobCreationError(error_message)
+
+
+def pause_job(name: str):
+    full_name = client.job_path(PROJECT_ID, REGION, name)
+    try:
+        return client.pause_job(full_name)
+    except (BaseException, Exception) as e:
+        error_message = get_error(e)
+        raise JobUpdateError(error_message)
+
+
+def resume_job(name: str):
+    full_name = client.job_path(PROJECT_ID, REGION, name)
+    try:
+        return client.resume_job(full_name)
+    except (BaseException, Exception) as e:
+        error_message = get_error(e)
+        raise JobUpdateError(error_message)
 
 
 def update_job(name: str, new_job: Job):
@@ -99,7 +115,7 @@ def update_job(name: str, new_job: Job):
     if name == new_job.name:
         update_mask.pop('name')
     try:
-        client.update_job(job, update_mask)
+        return client.update_job(job, update_mask)
     except (BaseException, Exception) as e:
         error_message = get_error(e)
         raise JobUpdateError(error_message)

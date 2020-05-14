@@ -19,8 +19,6 @@ from .utils import get_runtime_parameters
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ensure 'tasks' is available on path (without having to run install command)
 sys.path.insert(0, os.path.join(os.path.dirname(BASE_DIR)))
-print(os.path.join(os.path.dirname(BASE_DIR)))
-
 
 environment_defaults = {
     # these should all be strings.
@@ -61,6 +59,7 @@ INSTALLED_APPS = [
 
     'tasks',
     'rest_framework',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
