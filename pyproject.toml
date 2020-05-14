@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "django-cloud-tasks"
+version = "0.1.0"
+description = ""
+authors = ["jjorissen52 <jjorissen52@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.6"
+django = ">=2"
+google-auth = "^1.14.3"
+requests = "^2.23.0"
+psycopg2-binary = "^2.8.5"
+djangorestframework = "^3.11.0"
+google-cloud-tasks = "^1.5.0"
+google-cloud-scheduler = "^1.2.1"
+pydantic = "^1.5.1"
+
+[tool.poetry.dev-dependencies]
+django-dotenv = "^1.4.2"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

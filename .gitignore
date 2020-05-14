@@ -1,0 +1,6 @@
+.idea/
+
+postgres/
+venv/
+
+.env
