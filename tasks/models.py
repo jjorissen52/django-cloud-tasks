@@ -1,3 +1,4 @@
+import re
 from typing import Tuple
 
 from django.contrib.postgres.fields import JSONField
@@ -10,7 +11,7 @@ from . conf import ROOT_URL
 MAX_NAME_LENGTH = 100
 # status constants
 RUNNING, PAUSED, UNKNOWN, BROKEN, STARTED, SUCCESS, FAILURE = \
-    'enabled', 'disabled', 'unknown', 'broken', 'started', 'success', 'failure'
+    'running', 'paused', 'unknown', 'broken', 'started', 'success', 'failure'
 # action constants
 START, PAUSE, FIX = 'start', 'pause', 'fix'
 # management constants
@@ -41,7 +42,7 @@ class Clock(models.Model):
         RUNNING: 'The clock is running.',
         PAUSED: 'The clock has been paused.',
         UNKNOWN: 'Clock status unknown (likely manually managed).',
-        BROKEN: 'The could not be creeated.',
+        BROKEN: 'The clock is broken.',
     }
     STATUS_CHOICES = (
         (key, value) for key, value in _status_choices.items()
@@ -49,6 +50,7 @@ class Clock(models.Model):
 
     name = models.CharField(max_length=MAX_NAME_LENGTH, help_text="Name of clock. Use something descriptive like "
                                                                   "\"Every Day\"")
+    gcp_name = models.TextField(null=True, help_text="Name of task in GCP with unaccepted characters removed.")
     description = models.TextField(help_text="Description of what the Clock is for. Will be shown in Cloud Console.")
     cron = models.CharField(max_length=30, help_text="Cron-style schedule, (test with https://crontab.guru/)")
     management = models.CharField(max_length=7, default=GCP, choices=MANAGEMENT_CHOICES,
@@ -62,7 +64,7 @@ class Clock(models.Model):
 
     def new_job(self):
         assert self.pk is not None, "Cannot create job without a primary key."
-        return cloud_scheduler.Job(name=self.name,
+        return cloud_scheduler.Job(name=self.gcp_name,
                                    description=self.description,
                                    schedule=self.cron,
                                    time_zone='America/Chicago',
@@ -71,12 +73,15 @@ class Clock(models.Model):
     def clean(self):
         if self.management == MANUAL:
             self.status = UNKNOWN
+        if not self.gcp_name:
+            # make the name friendly for GCP. The value of this field will never change for a given clock.
+            self.gcp_name = re.sub(r'[^\w-]', '-', self.name)
         return self
 
-    def start(self) -> Tuple[bool, str]:
+    def start_clock(self) -> Tuple[bool, str]:
         try:
-            job = cloud_scheduler.get_job(self.name)
-            job = cloud_scheduler.resume_job(self.name)
+            job = cloud_scheduler.get_job(self.gcp_name)
+            job = cloud_scheduler.resume_job(self.gcp_name)
 
         except cloud_scheduler.JobRetrieveError as e:
             error_message = cloud_scheduler.get_error(e)
@@ -90,58 +95,130 @@ class Clock(models.Model):
                 except cloud_scheduler.JobCreationError as e:
                     error_message = cloud_scheduler.get_error(e)
                     self.status = BROKEN
-                    self.save()
+                    self.save(skip_cloud_update=True)
                     return False, f"Clock {job.name} could not be created: {error_message}"
             else:
                 error_message = cloud_scheduler.get_error(e)
                 self.status = BROKEN
-                self.save()
+                self.save(skip_cloud_update=True)
                 return False, f"Encountered unknown error while attempting to create clock " \
                               f"{self.name}: {error_message}"
-        except cloud_scheduler.JobUpdateError as e:
+        except (Exception, BaseException) as e:
             error_message = cloud_scheduler.get_error(e)
             self.status = BROKEN
-            self.save()
-            return False, f"Could not restart clock {job.name}: {error_message}"
+            self.save(skip_cloud_update=True)
+            return False, f"Could not restart clock {self.name}: {error_message}"
 
         self.status = RUNNING
-        self.save()
+        self.save(skip_cloud_update=True)
         return True, f"Clock {job.name} is running."
 
-    def pause(self):
+    def pause_clock(self) -> Tuple[bool, str]:
         try:
-            job = cloud_scheduler.get_job(self.name)
-        except cloud_scheduler.JobRetrieveError as e:
+            job = cloud_scheduler.get_job(self.gcp_name)
+        except (Exception, BaseException) as e:
             error_message = cloud_scheduler.get_error(e)
             if "Job not found" in error_message:
                 self.status = BROKEN
-                self.save()
-                return False, f"Clock {self.name} does not exist in Cloud Scheduler."
+                self.save(skip_cloud_update=True)
+                return False, f"Clock {self.name} (alias for {self.gcp_name}) does not exist in Cloud Scheduler."
             else:
                 self.status = BROKEN
-                self.save()
+                self.save(skip_cloud_update=True)
                 return False, f"Enountered unknown error while attempting to pause clock {self.name}: {error_message}"
         try:
-            cloud_scheduler.pause_job(self.name)
-        except cloud_scheduler.JobUpdateError as e:
-            return False, f"Could not pause Clock {job.name}: {e}"
+            cloud_scheduler.pause_job(self.gcp_name)
+        except (Exception, BaseException) as e:
+            return False, f"Could not pause Clock {self.name}: {e}"
 
         self.status = PAUSED
-        self.save()
-        return True, f'Clock {job.name} paused.'
+        self.save(skip_cloud_update=True)
+        return True, f'Clock {self.name} paused.'
+
+    def update_clock(self) -> Tuple[bool, str]:
+        old_job, return_message = None, f"Could not retrieve clock {self.new_job().name} " \
+                                        f"for editing. (Missing logic branch)."
+        new_job = self.new_job()
+        try:
+            old_job = cloud_scheduler.get_job(self.gcp_name)
+        except (Exception, BaseException) as e:
+            error_message = cloud_scheduler.get_error(e)
+            return_message = f'Could not retrieve clock {self.name} ' \
+                             f'(alias for {self.gcp_name}) for editing: {error_message}'
+
+        if old_job is None:
+            return False, return_message
+
+        updated_job = None
+        try:
+            updated_job = cloud_scheduler.update_job(old_job, new_job)
+        except (Exception, BaseException) as e:
+            error_message = cloud_scheduler.get_error(e)
+            return_message = f'Could not update clock {new_job.name}: {error_message}'
+
+        if updated_job is None:
+            self.status = BROKEN
+            # prevent update_clock from being called with again with skip_cloud_update
+            self.save(skip_cloud_update=True)
+            return False, return_message
+        return True, f'Clock {self.name} updated successfully.'
+
+    def delete_clock(self) -> Tuple[bool, str]:
+        job, return_message = None, f"Could not retrieve clock {self.name} for deletion. (Missing logic branch)."
+        try:
+            job = cloud_scheduler.get_job(self.gcp_name)
+        except (Exception, BaseException) as e:
+            error_message = cloud_scheduler.get_error(e)
+            # in case clock was never created
+            if "Job not found" not in error_message:
+                return True, f"Clock {self.name} deleted successfully."
+            return_message = f'Could not retrieve clock {self.name} ' \
+                             f'(alias for {self.gcp_name}) for deletion: {error_message}'
+
+        if job is None:
+            return False, return_message
+
+        try:
+            cloud_scheduler.delete_job(self.gcp_name)
+            job = True
+        except (Exception, BaseException) as e:
+            error_message = cloud_scheduler.get_error(e)
+            return_message = f'Could not delete clock {self.name} ' \
+                             f'(alias for {self.gcp_name}): {error_message}'
+        if job is None:
+            self.status = BROKEN
+            # prevent update_clock from being called with with skip_cloud_update
+            self.save(skip_cloud_update=True)
+            return False, return_message
+        return True, f"Clock {self.name} deleted successfully."
 
     def save(self, force_insert=False, force_update=False, using=None,
-             update_fields=None):
+             update_fields=None, skip_cloud_update=None):
         self.clean()
-        should_start = self.pk is None
-        super().save(force_insert, force_update, using, update_fields)
-        if self.management == MANUAL:
-            return self
+        is_new = self.pk is None
         # create/update new Cloud Scheduler job corresponding to Clock
         # if this model instance is just now being created.
-        if should_start:
-            self.start()
+        super().save(force_insert, force_update, using, update_fields)
+        if is_new:
+            if self.management == MANUAL:
+                return self
+            self.start_clock()
+        else:
+            # skip_cloud_update is passed by the *_clock methods when they call Clock.save().
+            # this flag prevents infinite recursion from continually calling Clock.update_clock,
+            # and some undesired updates
+            if skip_cloud_update:
+                return self
+            _, message = self.update_clock()
+            print(message)
         return self
+
+    def delete(self, using=None, keep_parents=False):
+        success, message = self.delete_clock()
+        if not success:
+            message = f'Error encountered while attempting to clean up Clock: {message}'
+            raise cloud_scheduler.JobDeleteError(message)
+        return super(Clock, self).delete(using=using, keep_parents=keep_parents)
 
     def __str__(self):
         return f'{self.name} ({self._management_choices[self.management]})'

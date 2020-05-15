@@ -41,10 +41,20 @@ class ClockActions(UpdateView):
                                     f"{cloud_scheduler.get_error(e)}")
             return redirect("admin:tasks_clock_changelist")
         if action == START:
-            success, message = clock.start()
-            messages.success(request, message) if success else message.error(request, message)
-            return redirect("admin:tasks_clock_changelist")
+            success, message = clock.start_clock()
+            messages.success(request, message) if success else messages.error(request, message)
         if action == PAUSE:
-            success, message = clock.pause()
-            messages.success(request, message) if success else message.error(request, message)
-            return redirect("admin:tasks_clock_changelist")
+            success, message = clock.pause_clock()
+            messages.success(request, message) if success else messages.error(request, message)
+        if action == FIX:
+            success, message = clock.start_clock()
+            if not success:
+                message = f'Could not start or restart clock: {message}'
+                messages.error(request, message)
+                return redirect("admin:tasks_clock_changelist")
+            success, message = clock.update_clock()
+            if not success:
+                message = f'Could not update clock to match current settings: {message}'
+                messages.error(request, message)
+
+        return redirect("admin:tasks_clock_changelist")

@@ -40,11 +40,23 @@ class ClockAdmin(admin.ModelAdmin):
         (None, {
             'fields': ('name', 'cron', 'management')
         }),
+        ('Metadata', {
+            'fields': ('gcp_name', )
+        })
     )
 
     inlines = (
         TaskScheduleInline,
     )
+
+    def get_readonly_fields(self, request, obj=None):
+        return ['gcp_name']
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        # prevent user from using bulk delete, which circumvents Clock.delete()
+        del actions['delete_selected']
+        return actions
 
     def _actions(self, obj):
         if obj.status == RUNNING:
