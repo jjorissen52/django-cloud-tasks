@@ -1,4 +1,5 @@
 import re
+import requests
 from typing import Tuple
 
 from django.contrib.postgres.fields import JSONField
@@ -6,16 +7,7 @@ from django.db import models
 
 from . import cloud_scheduler
 from . conf import ROOT_URL
-
-# model invariants
-MAX_NAME_LENGTH = 100
-# status constants
-RUNNING, PAUSED, UNKNOWN, BROKEN, STARTED, SUCCESS, FAILURE = \
-    'running', 'paused', 'unknown', 'broken', 'started', 'success', 'failure'
-# action constants
-START, PAUSE, FIX = 'start', 'pause', 'fix'
-# management constants
-GCP, MANUAL = 'gcp', 'manual'
+from . constants import *
 
 
 class Clock(models.Model):
@@ -68,7 +60,7 @@ class Clock(models.Model):
                                    description=self.description,
                                    schedule=self.cron,
                                    time_zone='America/Chicago',
-                                   http_target=f'{ROOT_URL}/tasks/api/clocks/{self.pk}/tick/')
+                                   target_url=f'{ROOT_URL}/tasks/api/clocks/{self.pk}/tick/')
 
     def clean(self):
         if self.management == MANUAL:
@@ -170,7 +162,7 @@ class Clock(models.Model):
         except (Exception, BaseException) as e:
             error_message = cloud_scheduler.get_error(e)
             # in case clock was never created
-            if "Job not found" not in error_message:
+            if "Job not found" in error_message:
                 return True, f"Clock {self.name} deleted successfully."
             return_message = f'Could not retrieve clock {self.name} ' \
                              f'(alias for {self.gcp_name}) for deletion: {error_message}'
@@ -252,9 +244,9 @@ class TaskSchedule(models.Model):
     """
 
     name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True, help_text="Name of Task Schedule")
-    task = models.ForeignKey('tasks.Task', on_delete=models.PROTECT)
+    task = models.ForeignKey('tasks.Task', on_delete=models.PROTECT, related_name='schedules')
 
-    clock = models.ForeignKey(Clock, null=True, on_delete=models.SET_NULL)
+    clock = models.ForeignKey(Clock, null=True, on_delete=models.SET_NULL, related_name='schedules')
 
     enabled = models.BooleanField(default=True, help_text="Whether or not task schedule is enabled.")
 
@@ -293,6 +285,10 @@ class Step(models.Model):
 
     success_pattern = models.CharField(null=True, blank=True, max_length=255,
                                        help_text="Regex corresponding to successful execution")
+
+    def execute(self):
+        response = requests.post(self.action, data=self.payload)
+
 
     class Meta:
         unique_together = ("name", "task", )

@@ -2,24 +2,8 @@ from django.shortcuts import redirect
 from django.views.generic import UpdateView
 from django.contrib import messages
 
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-
-from . import auth
 from .models import Clock
 from . import cloud_scheduler
-
-
-class TestGoogleOpenIDAuth(APIView):
-    authentication_classes = [auth.GoogleOpenIDAuthentication]
-
-    def get(self, request, format=None):
-        return Response({'ok': 'You did good.'}, status=status.HTTP_200_OK)
-
-    def post(self, request, format=None):
-        return Response({'ok': 'You did good.'}, status=status.HTTP_200_OK)
-
 
 START, PAUSE, FIX, = 'start', 'pause', 'fix'
 
@@ -53,8 +37,6 @@ class ClockActions(UpdateView):
                 messages.error(request, message)
                 return redirect("admin:tasks_clock_changelist")
             success, message = clock.update_clock()
-            if not success:
-                message = f'Could not update clock to match current settings: {message}'
-                messages.error(request, message)
+            messages.success(request, message) if success else messages.error(request, message)
 
         return redirect("admin:tasks_clock_changelist")

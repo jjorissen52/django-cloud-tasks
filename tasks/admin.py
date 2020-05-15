@@ -3,8 +3,8 @@ from django.contrib.admin import register
 from django.urls import reverse
 from django.utils.html import format_html
 
-from tasks.models import Clock, TaskExecution, TaskSchedule, Task, Step, \
-    START, RUNNING, PAUSE, PAUSED, FIX, BROKEN, UNKNOWN
+from tasks.models import Clock, TaskExecution, TaskSchedule, Task, Step
+from tasks.constants import START, RUNNING, PAUSE, PAUSED, FIX, BROKEN, UNKNOWN
 
 
 @register(Step)

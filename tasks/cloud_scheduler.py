@@ -8,7 +8,7 @@ from typing import Union, Any
 from pydantic import BaseModel
 
 from google.cloud.scheduler_v1 import CloudSchedulerClient
-from . conf import REGION, PROJECT_ID, ROOT_URL
+from . conf import REGION, PROJECT_ID, SERVICE_ACCOUNT
 
 client = CloudSchedulerClient()
 parent = client.location_path(PROJECT_ID, REGION)
@@ -43,9 +43,18 @@ MUTABLE_JOB_ATTRIBUTES = ('description', 'schedule', 'time_zone',)
 class Job(BaseModel):
     name: str
     description: str
-    http_target: str
+    target_url: str
     schedule: str
     time_zone: str
+
+    @property
+    def http_target(self):
+        return {
+            'uri': self.target_url,
+            'oidc_token': {
+                'service_account_email': SERVICE_ACCOUNT
+            }
+        }
 
     def __init__(self, name=None, **kwargs):
         super(Job, self).__init__(name=name, **kwargs)
@@ -55,7 +64,7 @@ class Job(BaseModel):
         _dict = {}
         for attr in ('name', ) + MUTABLE_JOB_ATTRIBUTES:
             _dict[attr] = self.__getattribute__(attr)
-        _dict['http_target'] = {'uri': self.http_target}
+        _dict['http_target'] = self.http_target
         return _dict
 
 
