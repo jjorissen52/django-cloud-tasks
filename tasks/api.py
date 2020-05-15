@@ -1,4 +1,5 @@
 from rest_framework import serializers, viewsets, status, authentication
+from rest_framework.settings import api_settings
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,7 +9,7 @@ from tasks.models import Clock
 
 
 class TestGoogleOpenIDAuth(APIView):
-    authentication_classes = [auth.GoogleOpenIDAuthentication]
+    authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
 
     @staticmethod
     def get(request, format=None):
@@ -34,7 +35,7 @@ class ClockViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD capabilities to the `Clock` model.
     """
-    authentication_classes = [authentication.SessionAuthentication, auth.GoogleOpenIDAuthentication, ]
+    authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
     queryset = Clock.objects.all()
     serializer_class = ClockSerializer
 

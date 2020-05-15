@@ -9,7 +9,7 @@ from tasks.constants import START, RUNNING, PAUSE, PAUSED, FIX, BROKEN, UNKNOWN
 
 @register(Step)
 class StepAdmin(admin.ModelAdmin):
-    list_display = ('task', 'name', 'action', 'success_pattern',)
+    list_display = ('name', 'task', 'action', 'success_pattern',)
 
 
 class StepInline(admin.TabularInline):

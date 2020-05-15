@@ -1,5 +1,6 @@
+import functools
+import json
 import re
-import requests
 from typing import Tuple
 
 from django.contrib.postgres.fields import JSONField
@@ -8,6 +9,7 @@ from django.db import models
 from . import cloud_scheduler
 from . conf import ROOT_URL
 from . constants import *
+from . import requests
 
 
 class Clock(models.Model):
@@ -272,6 +274,29 @@ class Task(models.Model):
         return self.name
 
 
+def format_response_tuple(method):
+    """
+    Convenience wrapper for formatting a status_code, response_text pair
+    :param method: method to be wrapped
+    :return:
+    """
+    @functools.wraps
+    def inner(self, *args, **kwargs) -> Tuple[bool, int, dict]:
+        success, status_code, response_text = method(self, *args, **kwargs)
+        response_dict = {'response': {
+                'success': success,
+                'status': status_code,
+            }}
+        try:
+            response_dict['response']['content'] = json.loads(response_text)
+            response_dict['response']['is_json'] = True
+        except json.JSONDecodeError:
+            response_dict['response']['content'] = response_text
+            response_dict['response']['is_json'] = False
+        return success, status_code, response_dict
+    return inner
+
+
 class Step(models.Model):
     """
     A single step to be performed during execution of a `Task`. Currently,
@@ -286,9 +311,21 @@ class Step(models.Model):
     success_pattern = models.CharField(null=True, blank=True, max_length=255,
                                        help_text="Regex corresponding to successful execution")
 
-    def execute(self):
-        response = requests.post(self.action, data=self.payload)
-
+    @format_response_tuple
+    def execute(self, session=None) -> Tuple[bool, int, str]:
+        """
+        Make a POST request, check the response
+        :param session: http session to use for step
+        :return: success: bool, response.status_code: int, response.text: str
+        """
+        session = requests.Session() if session is None else session
+        with session as s:
+            response = s.post(self.action, data=self.payload)
+        # if redirect or some error code
+        if response.status_code > 299:
+            return False, response.status_code, response.text
+        success_regex = re.compile(self.success_pattern)
+        return success_regex.match(response.text) is not None, response.status_code, response.text
 
     class Meta:
         unique_together = ("name", "task", )
