@@ -5,6 +5,7 @@ from typing import Tuple
 
 from django.contrib.postgres.fields import JSONField
 from django.db import models
+from django.forms import model_to_dict
 
 from tasks import cloud_scheduler
 from tasks.conf import ROOT_URL
@@ -283,7 +284,7 @@ class Task(models.Model):
             })
 
         num_successes = len(steps) if all(successes) else len(tuple(filter(lambda x: x, successes)))
-        all_completed = num_successes == len(steps),
+        all_completed = num_successes == len(steps)
         task_results.update({
             'all_completed': all_completed,
             'steps_completed': num_successes,
@@ -300,30 +301,32 @@ class Task(models.Model):
 
 def format_response_tuple(method):
     """
-    Convenience wrapper for formatting a status_code, response_text pair
+    Convenience wrapper for formatting a tuple(success, status_code, response_text, failure_reason) response
     :param method: method to be wrapped
     :return:
     """
     @functools.wraps(method)
     def inner(*args, **kwargs) -> Tuple[bool, int, dict]:
-        error = None
         try:
-            success, status_code, response_text = method(*args, **kwargs)
+            step_summary, success, status_code, response_text, failure_reason = method(*args, **kwargs)
         except (Exception, BaseException) as e:
-            error = str(e)
-            success, status_code, response_text = False, 505, None
-        response_dict = {'response': {
+            step_summary, success, status_code, response_text, failure_reason = \
+                'unknown', False, 500, None, f'{e.__class__.__name__}("{e}")'
+        response_dict = {
+            'summary': step_summary,
+            'response': {
                 'success': success,
                 'status': status_code,
-            }}
+            }
+        }
         try:
             response_dict['response']['content'] = json.loads(response_text)
             response_dict['response']['is_json'] = True
         except (json.JSONDecodeError, TypeError):
             response_dict['response']['content'] = response_text
             response_dict['response']['is_json'] = False
-        if error:
-            response_dict['response']['error'] = error
+        if failure_reason:
+            response_dict['response']['error'] = failure_reason
 
         return success, status_code, response_dict
     return inner
@@ -344,24 +347,26 @@ class Step(models.Model):
                                        help_text="Regex corresponding to successful execution")
 
     @format_response_tuple
-    def execute(self, session=None) -> Tuple[bool, int, str]:
+    def execute(self, session=None) -> Tuple[dict, bool, int, str, str]:
         """
         Make a POST request, check the response
         :param session: http session to use for step
         :return: success: bool, response.status_code: int, response.text: str
         """
+        step_summary = model_to_dict(self)
         session = requests.create_openid_session(audience=self.action) if not session else session
         with session as s:
             response = s.post(self.action, data=self.payload)
         # if redirect or some error code
         if response.status_code > 299:
-            return False, response.status_code, response.text
-        success = True
+            return step_summary, False, response.status_code, response.text, "HTTP Error"
+        success, failure_reason = True, None
         if self.success_pattern is not None:
             success_regex = re.compile(self.success_pattern)
             # success if our patten matches any part of the response text
             success = success_regex.search(response.text) is not None
-        return success, response.status_code, response.text
+            failure_reason = None if success else f"response content did not match success_regex={self.success_pattern}"
+        return step_summary, success, response.status_code, response.text, failure_reason
 
     class Meta:
         unique_together = ("name", "task", )

@@ -1,3 +1,5 @@
+import json
+
 from rest_framework import serializers, viewsets, status, authentication
 from rest_framework.settings import api_settings
 from rest_framework.decorators import action
@@ -33,6 +35,10 @@ class ClockSerializer(serializers.ModelSerializer):
 
 
 class BrokenClockError(APIException):
+    pass
+
+
+class StepFailureError(APIException):
     pass
 
 
@@ -113,6 +119,15 @@ class StepViewSet(viewsets.ModelViewSet):
     queryset = Step.objects.all()
     serializer_class = StepSerializer
 
+    # allowing GET for use from browser
+    @action(detail=True, methods=['post', 'get'])
+    def execute(self, request, pk=None):
+        step = self.get_object()
+        success, status_code, response_dict = step.execute()
+        if not success:
+            raise StepFailureError(code=f'task_{status_code}', detail=response_dict)
+        return Response({"result": response_dict})
+
 
 class TaskSerializer(serializers.ModelSerializer):
 
@@ -130,10 +145,18 @@ class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
 
+    # allowing GET for use from browser
+    @action(detail=True, methods=['post', 'get'])
+    def execute(self, request, pk=None):
+        task = self.get_object()
+        task_execution = task.execute()
+        return Response(task_execution.results)
+
 
 class TaskExecutionSerializer(serializers.ModelSerializer):
 
     url = serializers.HyperlinkedIdentityField(view_name='tasks:taskexecution-detail')
+    task = serializers.HyperlinkedRelatedField(view_name='tasks:task-detail', read_only=True)
 
     class Meta:
         model = TaskExecution
