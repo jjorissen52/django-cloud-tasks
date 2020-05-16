@@ -3,6 +3,7 @@ from rest_framework.settings import api_settings
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.exceptions import APIException
 
 from tasks import auth
 from tasks.models import Clock, Step, Task, TaskExecution, TaskSchedule
@@ -31,6 +32,10 @@ class ClockSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class BrokenClockError(APIException):
+    pass
+
+
 class ClockViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD capabilities to the `Clock` model.
@@ -42,7 +47,8 @@ class ClockViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def tick(self, request, pk=None):
         """
-        Execute Tasks associated with the clock on a tick
+        Execute Tasks associated with the clock on a tick.
+        # TODO: asynchronous execution using Cloud Tasks
 
         :param request:
         :param pk:
@@ -54,6 +60,41 @@ class ClockViewSet(viewsets.ModelViewSet):
         for schedule in schedules:
             exceution_summary[schedule.name] = schedule.task.execute().results
         return Response(exceution_summary)
+
+    # allowing GET for use from browser
+    @action(detail=True, methods=['post', 'get'])
+    def start(self, request, pk=None):
+        clock = self.get_object()
+        success, message = clock.start_clock()
+        if not success:
+            raise BrokenClockError(message)
+        return Response({"message": message})
+
+    # allowing GET for use from browser
+    @action(detail=True, methods=['post', 'get'])
+    def pause(self, request, pk=None):
+        clock = self.get_object()
+        success, message = clock.pause_clock()
+        if not success:
+            raise BrokenClockError(message)
+        return Response({"message": message})
+
+    @action(detail=True, methods=['post'])
+    def force_update(self, request, pk=None):
+        clock = self.get_object()
+        success, message = clock.update_clock()
+        if not success:
+            raise BrokenClockError(message)
+        return Response({"message": message})
+
+    # allowing GET for use from browser
+    @action(detail=True, methods=['post', 'get'])
+    def force_delete(self, request, pk=None):
+        clock = self.get_object()
+        success, message = clock.delete_clock()
+        if not success:
+            raise BrokenClockError(message)
+        return Response({"message": message})
 
 
 class StepSerializer(serializers.ModelSerializer):
