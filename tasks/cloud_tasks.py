@@ -25,6 +25,7 @@ def list_tasks(queue: str) -> List[Task]:
 def create_task(
         queue: str,
         url: str,
+        name: Optional[str] = None,
         payload: Optional[Union[str, dict, list, tuple]] = None,
         service_account: str = SERVICE_ACCOUNT,
         delay: int = 0
@@ -47,10 +48,13 @@ def create_task(
         task['http_request']['body'] = json.dumps(payload)
 
     scheduled_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay)
-    timestamp = timestamp_pb2.Timestamp()
-    timestamp.FromDatetime(scheduled_time)
+    pb2_timestamp = timestamp_pb2.Timestamp()
+    pb2_timestamp.FromDatetime(scheduled_time)
 
-    task['schedule_time'] = timestamp
+    task['schedule_time'] = pb2_timestamp
+    if name:
+        task['name'] = client.task_path(PROJECT_ID, REGION, queue, f'{name}-{int(scheduled_time.timestamp())}')
+        print(task['name'])
     return client.create_task(full_queue_name, task)
 
 
