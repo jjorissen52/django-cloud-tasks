@@ -18,7 +18,10 @@ djangorestframework = "^3.11.0"
 google-cloud-tasks = "^1.5.0"
 google-cloud-scheduler = "^1.2.1"
 pydantic = "^1.5.1"
-fire = "^0.3.1"
+fire = {version = "^0.3.1", optional = true}
+
+[tool.poetry.extras]
+cli = ["fire"]
 
 [tool.poetry.dev-dependencies]
 django-dotenv = "^1.4.2"

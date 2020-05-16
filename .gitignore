@@ -7,3 +7,4 @@ venv/
 
 /google-private-key.json
 /dist/
+/*.egg-info/
