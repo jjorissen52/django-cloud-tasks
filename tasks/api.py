@@ -79,8 +79,8 @@ class ClockViewSet(viewsets.ModelViewSet):
             raise BrokenClockError(message)
         return Response({"message": message})
 
-    @action(detail=True, methods=['post'])
-    def force_update(self, request, pk=None):
+    @action(detail=True, methods=['post'], url_path="update")
+    def clock_update(self, request, pk=None):
         clock = self.get_object()
         success, message = clock.update_clock()
         if not success:
@@ -88,8 +88,8 @@ class ClockViewSet(viewsets.ModelViewSet):
         return Response({"message": message})
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'])
-    def force_delete(self, request, pk=None):
+    @action(detail=True, methods=['post', 'get'], url_path="delete")
+    def clock_delete(self, request, pk=None):
         clock = self.get_object()
         success, message = clock.delete_clock()
         if not success:
