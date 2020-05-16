@@ -50,5 +50,6 @@ class ClockViewSet(viewsets.ModelViewSet):
         """
         clock = self.get_object()
         schedules = clock.schedules.all()
-        print(schedules)
+        for schedule in schedules:
+            schedule.task.execute()
         return Response({"status": "ok"})

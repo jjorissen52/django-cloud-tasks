@@ -218,28 +218,6 @@ class Clock(models.Model):
         return f'{self.name} ({self._management_choices[self.management]})'
 
 
-class TaskExecution(models.Model):
-    """
-    Tasks that have been executed
-    """
-    _status_choices = {
-        'started': 'Started',
-        'success': 'Success',
-        'failure': 'Failure',
-    }
-    STATUS_CHOICES = (
-        (key, value) for key, value in _status_choices.items()
-    )
-
-    task = models.ForeignKey('tasks.Task', on_delete=models.CASCADE)
-    status = models.CharField(max_length=7, default='started', choices=STATUS_CHOICES)
-
-    results = JSONField(null=True, blank=True)
-
-    def __str__(self):
-        return f'{self.task} ({self._status_choices[self.status]})'
-
-
 class TaskSchedule(models.Model):
     """
     Execution Schedule for a `Task`. Each time the `Clock` ticks, a `TaskExecution` will be created.
@@ -264,11 +242,57 @@ class TaskSchedule(models.Model):
         return f'{self.name}: {self.task}'
 
 
+class TaskExecution(models.Model):
+    """
+    Tasks that have been executed
+    """
+    _status_choices = {
+        'started': 'Started',
+        'success': 'Success',
+        'failure': 'Failure',
+    }
+    STATUS_CHOICES = (
+        (key, value) for key, value in _status_choices.items()
+    )
+
+    task = models.ForeignKey('tasks.Task', on_delete=models.CASCADE)
+    status = models.CharField(max_length=7, default='started', choices=STATUS_CHOICES)
+
+    results = JSONField(null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.task} ({self._status_choices[self.status]})'
+
+
 class Task(models.Model):
     """
     A series of `Steps` to be executed at a set time.
     """
     name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True, help_text="Name of Task")
+
+    def execute(self):
+        task_execution = TaskExecution.objects.create(task=self)
+        successes = []
+        task_results = {'steps': {}}
+        steps = self.steps.all()
+        for step in steps:
+            success, status_code, response_dict = step.execute()
+            successes.append(success)
+            task_results['steps'].update({
+                step.name: response_dict
+            })
+
+        num_successes = len(steps) if all(successes) else len(tuple(filter(lambda x: x, successes)))
+        all_completed = num_successes == len(steps),
+        task_results.update({
+            'all_completed': all_completed,
+            'steps_completed': num_successes,
+            'steps_failed': len(steps) - num_successes,
+        })
+        task_execution.status = SUCCESS if all_completed else FAILURE
+        task_execution.results = task_results
+        task_execution.save()
+        return task_execution
 
     def __str__(self):
         return self.name
@@ -282,7 +306,12 @@ def format_response_tuple(method):
     """
     @functools.wraps(method)
     def inner(*args, **kwargs) -> Tuple[bool, int, dict]:
-        success, status_code, response_text = method(*args, **kwargs)
+        error = None
+        try:
+            success, status_code, response_text = method(*args, **kwargs)
+        except (Exception, BaseException) as e:
+            error = str(e)
+            success, status_code, response_text = False, 505, None
         response_dict = {'response': {
                 'success': success,
                 'status': status_code,
@@ -290,9 +319,12 @@ def format_response_tuple(method):
         try:
             response_dict['response']['content'] = json.loads(response_text)
             response_dict['response']['is_json'] = True
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             response_dict['response']['content'] = response_text
             response_dict['response']['is_json'] = False
+        if error:
+            response_dict['response']['error'] = error
+
         return success, status_code, response_dict
     return inner
 
@@ -303,8 +335,8 @@ class Step(models.Model):
     making requests to URLs authenticated with Google's OpenID as the App Engine service
     account are the only supported actions.
     """
-    task = models.ForeignKey(Task, on_delete=models.PROTECT, )
-    name = models.CharField(max_length=MAX_NAME_LENGTH, help_text="Name of Step")
+    task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name='steps')
+    name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True, help_text="Name of Step")
     action = models.URLField(help_text="URL to place request")
     payload = JSONField(null=True, blank=True, help_text="JSON Payload of request")
 
@@ -320,13 +352,16 @@ class Step(models.Model):
         """
         session = requests.create_openid_session(audience=self.action) if not session else session
         with session as s:
-            print(s.headers)
             response = s.post(self.action, data=self.payload)
         # if redirect or some error code
         if response.status_code > 299:
             return False, response.status_code, response.text
-        success_regex = re.compile(self.success_pattern)
-        return success_regex.match(response.text) is not None, response.status_code, response.text
+        success = True
+        if self.success_pattern is not None:
+            success_regex = re.compile(self.success_pattern)
+            # success if our patten matches any part of the response text
+            success = success_regex.search(response.text) is not None
+        return success, response.status_code, response.text
 
     class Meta:
         unique_together = ("name", "task", )
