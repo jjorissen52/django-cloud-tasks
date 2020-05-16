@@ -61,11 +61,7 @@ class ClockViewSet(viewsets.ModelViewSet):
         :return:
         """
         clock = self.get_object()
-        schedules = clock.schedules.all()
-        exceution_summary = {}
-        for schedule in schedules:
-            exceution_summary[schedule.name] = schedule.task.execute().results
-        return Response(exceution_summary)
+        return Response(clock.tick())
 
     # allowing GET for use from browser
     @action(detail=True, methods=['post', 'get'])

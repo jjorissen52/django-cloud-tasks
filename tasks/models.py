@@ -82,6 +82,13 @@ class Clock(models.Model):
             self.gcp_name = re.sub(r'[^\w-]', '-', self.name)
         return self
 
+    def tick(self):
+        schedules = self.schedules.all()
+        execution_summary = {}
+        for schedule in schedules:
+            execution_summary[schedule.name] = schedule.task.execute().results
+        return execution_summary
+
     @ignore_unmanaged_clock
     def start_clock(self) -> Tuple[bool, str]:
         try:
