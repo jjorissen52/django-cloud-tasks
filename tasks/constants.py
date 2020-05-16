@@ -4,6 +4,6 @@ MAX_NAME_LENGTH = 100
 RUNNING, PAUSED, UNKNOWN, BROKEN, STARTED, SUCCESS, FAILURE = \
     'running', 'paused', 'unknown', 'broken', 'started', 'success', 'failure'
 # action constants
-START, PAUSE, FIX = 'start', 'pause', 'fix'
+START, PAUSE, FIX, SYNC = 'start', 'pause', 'fix', 'sync'
 # management constants
 GCP, MANUAL = 'gcp', 'manual'

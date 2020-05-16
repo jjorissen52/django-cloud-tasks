@@ -4,7 +4,10 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from tasks.models import Clock, TaskExecution, TaskSchedule, Task, Step
-from tasks.constants import START, RUNNING, PAUSE, PAUSED, FIX, BROKEN, UNKNOWN
+from tasks.constants import \
+    RUNNING, PAUSED, BROKEN, UNKNOWN, \
+    START, PAUSE, FIX, SYNC, \
+    GCP, MANUAL
 
 
 @register(Step)
@@ -26,7 +29,7 @@ class TaskAdmin(admin.ModelAdmin):
 
 @register(TaskSchedule)
 class TaskScheduleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'task', 'clock', 'enabled', 'clock_active', 'active')
+    list_display = ('name', 'task', 'clock', 'enabled', 'status')
 
 
 class TaskScheduleInline(admin.TabularInline):
@@ -38,7 +41,7 @@ class ClockAdmin(admin.ModelAdmin):
     list_display = ('name', 'cron', 'management', 'status_info', '_actions')
     fieldsets = (
         (None, {
-            'fields': ('name', 'cron', 'management')
+            'fields': ('name', 'cron', 'management', 'status', )
         }),
         ('Metadata', {
             'fields': ('gcp_name', )
@@ -50,7 +53,9 @@ class ClockAdmin(admin.ModelAdmin):
     )
 
     def get_readonly_fields(self, request, obj=None):
-        return ['gcp_name']
+        if not obj or obj.management != MANUAL:
+            return ['status', 'gcp_name']
+        return tuple()
 
     def get_actions(self, request):
         actions = super().get_actions(request)
@@ -66,7 +71,7 @@ class ClockAdmin(admin.ModelAdmin):
         elif obj.status == BROKEN:
             action = FIX
         elif obj.status == UNKNOWN:
-            raise NotImplementedError("Handle the case where we do not want to create clock on enable")
+            action = SYNC
         else:
             assert False, f"Status must be one of {tuple(Clock._status_choices.keys())}, got {obj.status}"
         url = reverse("tasks:clock_actions", kwargs={'pk': obj.id, 'action': action})

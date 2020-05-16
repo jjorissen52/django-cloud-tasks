@@ -102,6 +102,15 @@ class ClockViewSet(viewsets.ModelViewSet):
             raise BrokenClockError(message)
         return Response({"message": message})
 
+    # allowing GET for use from browser
+    @action(detail=True, methods=['post', 'get'])
+    def sync(self, request, pk=None):
+        clock = self.get_object()
+        success, message = clock.sync_clock()
+        if not success:
+            raise BrokenClockError(message)
+        return Response({"message": message})
+
 
 class StepSerializer(serializers.ModelSerializer):
 

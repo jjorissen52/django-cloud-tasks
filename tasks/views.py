@@ -5,7 +5,7 @@ from django.contrib import messages
 from tasks.models import Clock
 from tasks import cloud_scheduler
 
-START, PAUSE, FIX, = 'start', 'pause', 'fix'
+from tasks.constants import START, PAUSE, FIX, SYNC
 
 
 class ClockActions(UpdateView):
@@ -30,13 +30,16 @@ class ClockActions(UpdateView):
         if action == PAUSE:
             success, message = clock.pause_clock()
             messages.success(request, message) if success else messages.error(request, message)
-        if action == FIX:
+        if action in FIX:
             success, message = clock.start_clock()
             if not success:
-                message = f'Could not start or restart clock: {message}'
+                message = f'Could not (re)start clock: {message}'
                 messages.error(request, message)
                 return redirect("admin:tasks_clock_changelist")
             success, message = clock.update_clock()
+            messages.success(request, message) if success else messages.error(request, message)
+        if action == SYNC:
+            success, message = clock.sync_clock()
             messages.success(request, message) if success else messages.error(request, message)
 
         return redirect("admin:tasks_clock_changelist")

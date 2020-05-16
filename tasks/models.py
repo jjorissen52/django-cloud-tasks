@@ -13,6 +13,15 @@ from tasks.constants import *
 from tasks import session as requests
 
 
+def ignore_unmanaged_clock(method):
+    def inner(self, *args, **kwargs):
+        if self.management == MANUAL:
+            return True, f"Skipping action {method.__name__} for manually managed clock {self.name}"
+        return method(self, *args, **kwargs)
+    inner.__name__ = method.__name__
+    return inner
+
+
 class Clock(models.Model):
     """
     Create an external time-keeper. Defaults to using Cloud Scheduler.
@@ -73,6 +82,7 @@ class Clock(models.Model):
             self.gcp_name = re.sub(r'[^\w-]', '-', self.name)
         return self
 
+    @ignore_unmanaged_clock
     def start_clock(self) -> Tuple[bool, str]:
         try:
             job = cloud_scheduler.get_job(self.gcp_name)
@@ -102,12 +112,13 @@ class Clock(models.Model):
             error_message = cloud_scheduler.get_error(e)
             self.status = BROKEN
             self.save(skip_cloud_update=True)
-            return False, f"Could not restart clock {self.name}: {error_message}"
+            return False, f"Could not (re)start clock {self.name}: {error_message}"
 
         self.status = RUNNING
         self.save(skip_cloud_update=True)
         return True, f"Clock {job.name} is running."
 
+    @ignore_unmanaged_clock
     def pause_clock(self) -> Tuple[bool, str]:
         try:
             job = cloud_scheduler.get_job(self.gcp_name)
@@ -130,6 +141,7 @@ class Clock(models.Model):
         self.save(skip_cloud_update=True)
         return True, f'Clock {self.name} paused.'
 
+    @ignore_unmanaged_clock
     def update_clock(self) -> Tuple[bool, str]:
         old_job, return_message = None, f"Could not retrieve clock {self.new_job().name} " \
                                         f"for editing. (Missing logic branch)."
@@ -158,6 +170,7 @@ class Clock(models.Model):
             return False, return_message
         return True, f'Clock {self.name} updated successfully.'
 
+    @ignore_unmanaged_clock
     def delete_clock(self) -> Tuple[bool, str]:
         job, return_message = None, f"Could not retrieve clock {self.name} for deletion. (Missing logic branch)."
         try:
@@ -187,6 +200,17 @@ class Clock(models.Model):
             return False, return_message
         return True, f"Clock {self.name} deleted successfully."
 
+    def sync_clock(self) -> Tuple[bool, str]:
+        self.management = GCP
+        success, message = self.start_clock()
+        if not success:
+            message = f'Could not sync clock: {message}'
+            return success, message
+        success, message = self.update_clock()
+        if not success:
+            message = f'Could not sync clock: {message}'
+        return success, message
+
     def save(self, force_insert=False, force_update=False, using=None,
              update_fields=None, skip_cloud_update=None):
         self.clean()
@@ -194,9 +218,10 @@ class Clock(models.Model):
         # create/update new Cloud Scheduler job corresponding to Clock
         # if this model instance is just now being created.
         super().save(force_insert, force_update, using, update_fields)
+        # do not manage the clock via save in manual mode
+        if self.management == MANUAL:
+            return self
         if is_new:
-            if self.management == MANUAL:
-                return self
             self.start_clock()
         else:
             # skip_cloud_update is passed by the *_clock methods when they call Clock.save().
@@ -231,13 +256,22 @@ class TaskSchedule(models.Model):
 
     enabled = models.BooleanField(default=True, help_text="Whether or not task schedule is enabled.")
 
-    def clock_active(self):
+    @property
+    def status(self):
         if self.clock is None:
-            return False
-        return self.clock.enabled
-
-    def active(self):
-        return self.enabled and self.clock_active()
+            return "No associated clock; manual execution only."
+        if not self.enabled:
+            return "Disabled; manual execution only."
+        if self.clock.status == RUNNING:
+            return f"Will execute on next tick of clock {self.clock.name}"
+        elif self.clock.status == PAUSED:
+            return f"Clock {self.clock.name} paused; manual execution only."
+        elif self.clock.status == UNKNOWN:
+            return f"Unknown; clock {self.clock.name} is manually managed and it's state is unknown."
+        elif self.clock.status == BROKEN:
+            return f"Clock {self.clock.name} broken; manual execution only."
+        else:
+            return f"Clock {self.clock.name} is in corrupted state {self.clock.status}; this should not have happened."
 
     def __str__(self):
         return f'{self.name}: {self.task}'
