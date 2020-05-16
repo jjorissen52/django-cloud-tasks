@@ -6,3 +6,4 @@ venv/
 .env
 
 /google-private-key.json
+/dist/

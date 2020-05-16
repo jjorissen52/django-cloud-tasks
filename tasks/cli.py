@@ -1,14 +1,22 @@
+#!/usr/bin/env python
 import os
 import sys
 import json
-import django
+from django import setup
 
 import functools
 import subprocess
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.abspath(os.getcwd()))
 
-django.setup()
+try:
+    setup()
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError(
+        f"Your django project settings could not be imported. The indicated settings module is "
+        f"{os.environ['DJANGO_SETTINGS_MODULE']}, and you executed cloud-tasks from the directory "
+        f"{os.path.abspath(os.getcwd())}. Please make sure that the relative path from your "
+        f"current working directory as indicated by DJANGO_SETTINGS_MODULE is accurate.")
 
 from django.contrib.auth import get_user_model
 
@@ -17,6 +25,59 @@ from tasks import cloud_tasks, conf
 from tasks.openid import create_token, decode_token
 
 User = get_user_model()
+
+
+def main():
+    import fire
+
+    exec_map = {
+        'tasks': {
+            'list': list_tasks,
+            'exec': execute_task,
+            'steps': {
+                'list': list_steps,
+                'exec': execute_step,
+            },
+            'executions': {
+                'list': list_executions,
+            },
+        },
+        'clocks': {
+            'list': list_clocks,
+            'tick': tick_clock,
+            'start': start_clock,
+            'pause': pause_clock,
+            'delete': delete_clock,
+            'sync': sync_clock,
+            'schedules': {
+                'list': list_schedules,
+            }
+        },
+        'auth': {
+            'open_id': {
+                'token': {
+                    'create': create_token,
+                    'decode': decode_token,
+                }
+            },
+            'service_account': {
+                'register': register_service_account,
+                'delete': delete_service_account,
+            },
+        },
+        'cloud': {
+            'service_account': {
+                'grant_required_roles': grant_required_roles,
+            },
+            'tasks': {
+                'list': cloud_tasks.list_tasks,
+                'create': cloud_tasks.create_task,
+                'delete': cloud_tasks.delete_task,
+            }
+        },
+    }
+    __apply_output(exec_map)
+    fire.Fire(exec_map)
 
 
 def list_steps(offset=0, limit=100):
@@ -153,53 +214,4 @@ def __apply_output(current_dict):
 
 
 if __name__ == '__main__':
-    import fire
-
-    exec_map = {
-        'tasks': {
-            'list': list_tasks,
-            'exec': execute_task,
-            'steps': {
-                'list': list_steps,
-                'exec': execute_step,
-            },
-            'executions': {
-                'list': list_executions,
-            },
-        },
-        'clocks': {
-            'list': list_clocks,
-            'tick': tick_clock,
-            'start': start_clock,
-            'pause': pause_clock,
-            'delete': delete_clock,
-            'sync': sync_clock,
-            'schedules': {
-                'list': list_schedules,
-            }
-        },
-        'auth': {
-            'open_id': {
-                'token': {
-                    'create': create_token,
-                    'decode': decode_token,
-                }
-            },
-            'service_account': {
-                'register': register_service_account,
-                'delete': delete_service_account,
-            },
-        },
-        'cloud': {
-            'service_account': {
-                'grant_required_roles': grant_required_roles,
-            },
-            'tasks': {
-                'list': cloud_tasks.list_tasks,
-                'create': cloud_tasks.create_task,
-                'delete': cloud_tasks.delete_task,
-            }
-        },
-    }
-    __apply_output(exec_map)
-    fire.Fire(exec_map)
+    main()

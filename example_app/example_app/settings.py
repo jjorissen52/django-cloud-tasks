@@ -33,7 +33,8 @@ environment_defaults = {
     "TASKS_REGION": "us-central1",
     "TASKS_PROJECT_ID": "best-project",
     "TASKS_SERVICE": 'default',
-    "TASKS_ROOT_URL": "http://localhost:8000" # not reachable from cloud provider
+    "TASKS_ROOT_URL": "http://localhost:8000",  # not reachable from cloud provider
+    "TASKS_QUEUE": "",
 }
 ENV = get_runtime_parameters(environment_defaults)
 
@@ -46,6 +47,7 @@ TASKS_REGION = ENV.TASKS_REGION
 TASKS_PROJECT_ID = ENV.TASKS_PROJECT_ID
 TASKS_SERVICE = ENV.TASKS_SERVICE
 TASKS_ROOT_URL = ENV.TASKS_ROOT_URL
+TASKS_QUEUE = ENV.TASKS_QUEUE
 
 # Application definition
 

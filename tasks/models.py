@@ -7,8 +7,8 @@ from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.forms import model_to_dict
 
-from tasks import cloud_scheduler
-from tasks.conf import ROOT_URL
+from tasks import cloud_scheduler, cloud_tasks
+from tasks.conf import ROOT_URL, USE_CLOUD_TASKS
 from tasks.constants import *
 from tasks import session as requests
 
@@ -28,6 +28,8 @@ class Clock(models.Model):
     Make sure the API is enabled at that the App Engine service account
     has Cloud Scheduler Admin. If you do not want App Engine to have
     this permission, you must select "Manual" instead.
+
+    TODO: create gcp_url field and allow it to be updated
     """
     _management_choices = {
         GCP: 'Cloud Scheduler',
@@ -86,7 +88,7 @@ class Clock(models.Model):
         schedules = self.schedules.all()
         execution_summary = {}
         for schedule in schedules:
-            execution_summary[schedule.name] = schedule.task.execute().results
+            execution_summary[schedule.name] = schedule.run()
         return execution_summary
 
     @ignore_unmanaged_clock
@@ -279,6 +281,11 @@ class TaskSchedule(models.Model):
             return f"Clock {self.clock.name} broken; manual execution only."
         else:
             return f"Clock {self.clock.name} is in corrupted state {self.clock.status}; this should not have happened."
+
+    def run(self):
+        if not USE_CLOUD_TASKS:
+            return self.task.execute().results
+        cloud_tasks.create_task(f'{ROOT_URL}/tasks/api/tasks/{self.task.pk}/execute/')
 
     def __str__(self):
         return f'{self.name}: {self.task}'
