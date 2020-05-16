@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from tasks import auth
-from tasks.models import Clock
+from tasks.models import Clock, Step, Task, TaskExecution, TaskSchedule
 
 
 class TestGoogleOpenIDAuth(APIView):
@@ -50,6 +50,75 @@ class ClockViewSet(viewsets.ModelViewSet):
         """
         clock = self.get_object()
         schedules = clock.schedules.all()
+        exceution_summary = {}
         for schedule in schedules:
-            schedule.task.execute()
-        return Response({"status": "ok"})
+            exceution_summary[schedule.name] = schedule.task.execute().results
+        return Response(exceution_summary)
+
+
+class StepSerializer(serializers.ModelSerializer):
+
+    url = serializers.HyperlinkedIdentityField(view_name='tasks:step-detail')
+
+    class Meta:
+        model = Step
+        fields = '__all__'
+
+
+class StepViewSet(viewsets.ModelViewSet):
+    """
+    Provides CRUD capabilities to the `Step` model.
+    """
+    queryset = Step.objects.all()
+    serializer_class = StepSerializer
+
+
+class TaskSerializer(serializers.ModelSerializer):
+
+    url = serializers.HyperlinkedIdentityField(view_name='tasks:task-detail')
+
+    class Meta:
+        model = Task
+        fields = '__all__'
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    """
+    Provides CRUD capabilities to the `Task` model.
+    """
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+
+
+class TaskExecutionSerializer(serializers.ModelSerializer):
+
+    url = serializers.HyperlinkedIdentityField(view_name='tasks:taskexecution-detail')
+
+    class Meta:
+        model = TaskExecution
+        fields = '__all__'
+
+
+class TaskExecutionViewSet(viewsets.ModelViewSet):
+    """
+    Provides CRUD capabilities to the `TaskExecution` model.
+    """
+    queryset = TaskExecution.objects.all()
+    serializer_class = TaskExecutionSerializer
+
+
+class TaskScheduleSerializer(serializers.ModelSerializer):
+
+    url = serializers.HyperlinkedIdentityField(view_name='tasks:taskschedule-detail')
+
+    class Meta:
+        model = TaskSchedule
+        fields = '__all__'
+
+
+class TaskScheduleViewSet(viewsets.ModelViewSet):
+    """
+    Provides CRUD capabilities to the `TaskSchedule` model.
+    """
+    queryset = TaskSchedule.objects.all()
+    serializer_class = TaskScheduleSerializer
