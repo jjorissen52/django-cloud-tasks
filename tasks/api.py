@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import auth
+from tasks import auth
 from tasks.models import Clock
 
 

@@ -1,7 +1,7 @@
 import google.auth.transport.requests
 from google.oauth2 import id_token
 
-from . conf import ROOT_URL
+from tasks.conf import ROOT_URL
 
 DEFAULT_AUDIENCE = f'{ROOT_URL}/api/csv/test-auth/'
 CERTS_URL = 'https://www.googleapis.com/oauth2/v1/certs'

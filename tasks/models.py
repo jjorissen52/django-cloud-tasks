@@ -6,10 +6,10 @@ from typing import Tuple
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 
-from . import cloud_scheduler
-from . conf import ROOT_URL
-from . constants import *
-from . import requests
+from tasks import cloud_scheduler
+from tasks.conf import ROOT_URL
+from tasks.constants import *
+from tasks import session as requests
 
 
 class Clock(models.Model):
@@ -280,9 +280,9 @@ def format_response_tuple(method):
     :param method: method to be wrapped
     :return:
     """
-    @functools.wraps
-    def inner(self, *args, **kwargs) -> Tuple[bool, int, dict]:
-        success, status_code, response_text = method(self, *args, **kwargs)
+    @functools.wraps(method)
+    def inner(*args, **kwargs) -> Tuple[bool, int, dict]:
+        success, status_code, response_text = method(*args, **kwargs)
         response_dict = {'response': {
                 'success': success,
                 'status': status_code,
@@ -318,8 +318,9 @@ class Step(models.Model):
         :param session: http session to use for step
         :return: success: bool, response.status_code: int, response.text: str
         """
-        session = requests.Session() if session is None else session
+        session = requests.create_openid_session(audience=self.action) if not session else session
         with session as s:
+            print(s.headers)
             response = s.post(self.action, data=self.payload)
         # if redirect or some error code
         if response.status_code > 299:

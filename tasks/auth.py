@@ -42,7 +42,6 @@ class GoogleOpenIDAuthentication(BaseAuthentication):
     certs_url = 'https://www.googleapis.com/oauth2/v1/certs'
 
     def authenticate(self, request):
-        print(__name__)
         now = time.time()
         try:
             auth_header = request.headers['Authorization']
@@ -72,7 +71,7 @@ class GoogleOpenIDAuthentication(BaseAuthentication):
             logging.info(msg)
             raise exceptions.AuthenticationFailed(msg)
         token = SimpleNamespace(**token)
-        logging.debug(f'Access attempted with token: {token}')
+        logging.info(f'Access attempted with token: {token}')
         # the audience indicated in the token should be the visited URL
         token_audience, required_audience = remove_protocol(token.aud), remove_protocol(request.build_absolute_uri())
         if token_audience != required_audience:

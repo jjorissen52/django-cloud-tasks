@@ -6,7 +6,7 @@ from typing import Optional
 
 from requests import *
 
-from .openid import create_token
+from tasks.openid import create_token
 
 
 class Session(Session):
@@ -16,11 +16,12 @@ class Session(Session):
 
     def __init__(self, auth_token: Optional[str] = None, headers: Optional[dict] = None):
         super().__init__()
-        if headers:
-            if auth_token:
-                auth_token = auth_token.split('Bearer')[-1].strip()
-                headers['authorization'] = f'Bearer {auth_token}'
-            self.headers.update(headers)
+        if headers is None:
+            headers = {}
+        if auth_token:
+            auth_token = auth_token.split('Bearer')[-1].strip()
+            headers['Authorization'] = f'Bearer {auth_token}'
+        self.headers.update(headers)
 
 
 def create_openid_session(audience: Optional[str] = None) -> Session:

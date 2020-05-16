@@ -2,8 +2,8 @@ from django.shortcuts import redirect
 from django.views.generic import UpdateView
 from django.contrib import messages
 
-from .models import Clock
-from . import cloud_scheduler
+from tasks.models import Clock
+from tasks import cloud_scheduler
 
 START, PAUSE, FIX, = 'start', 'pause', 'fix'
 

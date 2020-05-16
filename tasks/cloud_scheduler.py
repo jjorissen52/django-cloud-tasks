@@ -8,7 +8,7 @@ from typing import Union, Any
 from pydantic import BaseModel
 
 from google.cloud.scheduler_v1 import CloudSchedulerClient
-from . conf import REGION, PROJECT_ID, SERVICE_ACCOUNT
+from tasks.conf import REGION, PROJECT_ID, SERVICE_ACCOUNT
 
 client = CloudSchedulerClient()
 parent = client.location_path(PROJECT_ID, REGION)

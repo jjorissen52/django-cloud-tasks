@@ -167,9 +167,17 @@ LOGGING = {
         'django.server': {
             '()': 'django.utils.log.ServerFormatter',
             'format': '[%(server_time)s] %(message)s',
+        },
+        'default': {
+            'format': '[%(asctime)s - %(levelname)s] %(message)s',
         }
     },
     'handlers': {
+        'default': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+        },
         'console': {
             'level': 'DEBUG',
             'filters': ['require_debug_true'],
@@ -203,6 +211,12 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        #
+        '': {
+            'handlers': ['default'],
+            'level': 'INFO',
+            'propagate': False,
+        }
         # SQL logging
         # 'django.db.backends': {
         #     'handlers': ['console'],
