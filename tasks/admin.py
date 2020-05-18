@@ -95,4 +95,4 @@ class ClockAdmin(admin.ModelAdmin):
 
 @register(TaskExecution)
 class TaskExecutionAdmin(admin.ModelAdmin):
-    list_display = ('task', 'status', )
+    list_display = ('task', 'status', 'queued_time', 'start_time', 'finish_time', )

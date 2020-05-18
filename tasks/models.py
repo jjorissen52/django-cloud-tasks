@@ -6,6 +6,8 @@ from typing import Tuple, Optional, List
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.forms import model_to_dict
+# from django.utils.timezone import now
+from django.utils.timezone import now
 
 from tasks import cloud_scheduler, cloud_tasks
 from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT
@@ -321,8 +323,23 @@ class TaskExecution(models.Model):
 
     task = models.ForeignKey('tasks.Task', on_delete=models.CASCADE)
     status = models.CharField(max_length=7, default=PENDING, choices=STATUS_CHOICES)
+    queued_time = models.DateTimeField()
+    start_time = models.DateTimeField(null=True, blank=True)
+    finish_time = models.DateTimeField(null=True, blank=True)
 
     results = JSONField(null=True, blank=True)
+
+    def save(self, force_insert=False, force_update=False, using=None,
+             update_fields=None):
+        _now = now()
+        if self.pk is None:
+            self.queued_time = _now
+        if self.status == STARTED and not self.start_time:
+            self.start_time = _now
+        elif self.status in (SUCCESS, FAILURE, ) and not self.finish_time:
+            self.finish_time = _now
+        return super().save(force_insert=force_insert, force_update=force_update,
+                            using=using, update_fields=update_fields)
 
     def __str__(self):
         return f'{self.task} ({self._status_choices[self.status]})'
@@ -407,11 +424,20 @@ class Step(models.Model):
     making requests to URLs authenticated with Google's OpenID as the App Engine service
     account are the only supported actions.
     """
+    METHOD_CHOICES = (
+        ('GET', 'GET'),
+        ('POST', 'POST'),
+        ('PUT', 'PUT'),
+        ('PATCH', 'PATCH'),
+        ('DELETE', 'DELETE'),
+        ('HEAD', 'HEAD'),
+        ('OPTIONS', 'OPTIONS'),
+    )
     task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name='steps')
     name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True, help_text="Name of Step")
     action = models.URLField(help_text="URL to place request")
+    method = models.CharField(max_length=7, default='POST', choices=METHOD_CHOICES)
     payload = JSONField(null=True, blank=True, help_text="JSON Payload of request")
-
     success_pattern = models.CharField(null=True, blank=True, max_length=255,
                                        help_text="Regex corresponding to successful execution")
 
@@ -425,7 +451,8 @@ class Step(models.Model):
         step_summary = model_to_dict(self)
         session = requests.create_openid_session(audience=self.action) if not session else session
         with session as s:
-            response = s.post(self.action, data=self.payload)
+            http_method = getattr(s, self.method.lower())
+            response = http_method(self.action, data=self.payload)
         # if redirect or some error code
         if response.status_code > 299:
             return step_summary, False, response.status_code, response.text, "HTTP Error"

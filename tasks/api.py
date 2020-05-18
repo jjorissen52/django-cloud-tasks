@@ -121,6 +121,7 @@ class StepViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD capabilities to the `Step` model.
     """
+    authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
     queryset = Step.objects.all()
     serializer_class = StepSerializer
 
@@ -147,6 +148,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD capabilities to the `Task` model.
     """
+    authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
 
@@ -173,6 +175,7 @@ class TaskExecutionViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD capabilities to the `TaskExecution` model.
     """
+    authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
     queryset = TaskExecution.objects.all()
     serializer_class = TaskExecutionSerializer
 
@@ -190,6 +193,7 @@ class TaskScheduleViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD capabilities to the `TaskSchedule` model.
     """
+    authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
     queryset = TaskSchedule.objects.all()
     serializer_class = TaskScheduleSerializer
 
@@ -201,8 +205,12 @@ class TaskScheduleViewSet(viewsets.ModelViewSet):
         if isinstance(task_execution, TaskExecution):
             return Response({
                 "result": "Execution scheduled.",
-                "task_execution": reverse("tasks:taskexecution-detail",
-                                          kwargs={"pk": task_execution.pk}, request=request)
+                "task_execution": {
+                    'canonical': reverse("tasks:taskexecution-detail",
+                                         request=request, kwargs={"pk": task_execution.pk}),
+                    'admin': reverse("admin:tasks_taskexecution_change",
+                                     request=request, kwargs={"object_id": task_execution.pk}),
+                }
             })
 
         return Response(task_execution.results)
