@@ -96,7 +96,11 @@ class Clock(models.Model):
         schedules = self.schedules.all()
         execution_summary = {}
         for schedule in schedules:
-            execution_summary[schedule.name] = schedule.run()
+            task_execution = schedule.run()
+            if task_execution.results:
+                execution_summary[schedule.name] = task_execution.results
+            else:
+                execution_summary[schedule.name] = f"{task_execution} Results Pending."
         return execution_summary
 
     @ignore_unmanaged_clock
@@ -297,7 +301,7 @@ class TaskSchedule(models.Model):
 
     def run(self):
         if not USE_CLOUD_TASKS:
-            return self.task.execute().results
+            return self.task.execute()
         task_execution = TaskExecution.objects.create(task=self.task)
         create_url = f'{ROOT_URL}/tasks/api/tasks/{self.task.pk}/execute/?task_execution_id={task_execution.pk}'
         cloud_tasks.create_task(create_url, self.task.name)

@@ -1,7 +1,14 @@
+import json
+
+from pygments import highlight
+from pygments.formatters.html import HtmlFormatter
+from pygments.lexers.data import JsonLexer
+
 from django.contrib import admin, messages
 from django.contrib.admin import register
-from django.urls import reverse, path
+from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 from tasks.models import Clock, TaskExecution, TaskSchedule, Task, Step
 from tasks.constants import \
@@ -21,15 +28,29 @@ class StepInline(admin.TabularInline):
 
 @register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ('name', )
+    list_display = ('name', '_actions')
     inlines = (
         StepInline,
     )
 
+    def _actions(self, obj):
+        url = reverse("tasks:task_execute", kwargs={'pk': obj.id})
+        return format_html('<a href="{url}" class="button">Execute</a>', url=url)
+
+    _actions.allow_tags = True
+    _actions.short_description = 'Actions'
+
 
 @register(TaskSchedule)
 class TaskScheduleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'task', 'clock', 'enabled', 'status')
+    list_display = ('name', 'task', 'clock', 'enabled', 'status', '_actions')
+
+    def _actions(self, obj):
+        url = reverse("tasks:taskschedule_run", kwargs={'pk': obj.id})
+        return format_html('<a href="{url}" class="button">Run</a>', url=url)
+
+    _actions.allow_tags = True
+    _actions.short_description = 'Actions'
 
 
 class TaskScheduleInline(admin.TabularInline):
@@ -96,3 +117,15 @@ class ClockAdmin(admin.ModelAdmin):
 @register(TaskExecution)
 class TaskExecutionAdmin(admin.ModelAdmin):
     list_display = ('task', 'status', 'queued_time', 'start_time', 'finish_time', )
+    exclude = ('results', )
+    readonly_fields = ('execution_result', )
+
+    @staticmethod
+    def execution_result(obj):
+        _results = json.dumps(obj.results, indent=2)
+        _results = _results[:3000]  # limit the size of the output
+        html_formatter = HtmlFormatter(style='friendly')
+        _results = highlight(_results, JsonLexer(), html_formatter)
+        return mark_safe(f'<style>{html_formatter.get_style_defs()}</style></br>{_results}')
+
+    execution_result.short_description = 'Task Execution Results'
