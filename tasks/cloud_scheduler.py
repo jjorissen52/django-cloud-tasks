@@ -3,7 +3,7 @@ Utility wrappers around Google's Cloud Scheduler API. See
 https://googleapis.dev/python/cloudscheduler/latest/_modules/google/cloud/scheduler_v1/gapic/cloud_scheduler_client.html
 for API reference.
 """
-from typing import Union, Any
+from typing import Union, Any, Optional, List
 
 from pydantic import BaseModel
 
@@ -44,6 +44,7 @@ class Job(BaseModel):
     name: str
     description: str
     target_url: str
+    service_account: str
     schedule: str
     time_zone: str
 
@@ -52,7 +53,7 @@ class Job(BaseModel):
         return {
             'uri': self.target_url,
             'oidc_token': {
-                'service_account_email': SERVICE_ACCOUNT
+                'service_account_email': self.service_account
             }
         }
 
@@ -72,11 +73,29 @@ def get_full_name(name):
     return client.job_path(PROJECT_ID, REGION, name)
 
 
-def get_update_mask(old, new):
+def get_update_mask(old, new, explicit: Optional[List] = None):
+    """
+    Compares MUTABLE_JOB_ATTRIBUTES between the old and new job to provide a Cloud Scheduler UpdateMask. If `explicit`
+    is provided, only the provided fields will be updated. `explicit` is unioned with MUTABLE_JOB_ATTRIBUTES for
+    validation purposes.
+
+    :param old:
+    :param new:
+    :param explicit:
+    :return: {'paths': [...]} where the inner list is the list of fields that should be updated.
+    """
     _dict = {'paths': []}
-    for attr in MUTABLE_JOB_ATTRIBUTES:
+    # can update the intersection of MUTABLE and the passed attributes
+    paths = set(MUTABLE_JOB_ATTRIBUTES) & set(explicit) if explicit is not None else set(MUTABLE_JOB_ATTRIBUTES)
+    # indicate that the http_target.uri needs to be changed
+    update_uri = any([url_field_name in explicit
+                              for url_field_name in ['target_url', 'http_target']])
+    for attr in paths:
         if getattr(old, attr, False) != getattr(new, attr, False):
             _dict['paths'].append(attr)
+    # update http_target if http_target.uri or http_target.oidc_token.service_account_email needs to be changed
+    if (old.http_target.uri != new.http_target['uri'] and update_uri) or 'service_account' in explicit:
+        _dict['paths'].append('http_target')
     return _dict
 
 
@@ -126,18 +145,19 @@ def resume_job(name: str):
         raise JobUpdateError(error_message)
 
 
-def update_job(name_or_job: Union[str, Any], new_job: Job):
+def update_job(name_or_job: Union[str, Any], new_job: Job, explicit_mask: Optional[List] = None):
     """
     Updates the job named `name` in Cloud Scheduler with the data
     provided by `new_job`.
 
     :param name_or_job: Name of job or job instance to be updated
     :param new_job: Job instance containing data to update Cloud Scheduler job with
+    :param explicit_mask: List of fields to force updating
     :return:
     """
     job = get_job(name_or_job) if isinstance(name_or_job, str) else name_or_job
     # update mask is used to specify which fields are being updated.
-    update_mask = get_update_mask(job, new_job)
+    update_mask = get_update_mask(job, new_job, explicit_mask)
     try:
         return client.update_job(new_job.to_dict(), update_mask)
     except (BaseException, Exception) as e:

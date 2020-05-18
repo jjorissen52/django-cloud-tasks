@@ -1,14 +1,14 @@
 import functools
 import json
 import re
-from typing import Tuple
+from typing import Tuple, Optional, List
 
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.forms import model_to_dict
 
 from tasks import cloud_scheduler, cloud_tasks
-from tasks.conf import ROOT_URL, USE_CLOUD_TASKS
+from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT
 from tasks.constants import *
 from tasks import session as requests
 
@@ -22,6 +22,10 @@ def ignore_unmanaged_clock(method):
     return inner
 
 
+# prevent hardcoding current value as database default
+def default_service_account(): return SERVICE_ACCOUNT
+
+
 class Clock(models.Model):
     """
     Create an external time-keeper. Defaults to using Cloud Scheduler.
@@ -29,7 +33,6 @@ class Clock(models.Model):
     has Cloud Scheduler Admin. If you do not want App Engine to have
     this permission, you must select "Manual" instead.
 
-    TODO: create gcp_url field and allow it to be updated
     """
     _management_choices = {
         GCP: 'Cloud Scheduler',
@@ -57,6 +60,8 @@ class Clock(models.Model):
     name = models.CharField(max_length=MAX_NAME_LENGTH, help_text="Name of clock. Use something descriptive like "
                                                                   "\"Every Day\"")
     gcp_name = models.TextField(null=True, help_text="Name of task in GCP with unaccepted characters removed.")
+    gcp_service_account = models.CharField(max_length=255, default=default_service_account,
+                                           help_text="Email of GCP service account that this clock ticks as.")
     description = models.TextField(help_text="Description of what the Clock is for. Will be shown in Cloud Console.")
     cron = models.CharField(max_length=30, help_text="Cron-style schedule, (test with https://crontab.guru/)")
     management = models.CharField(max_length=7, default=GCP, choices=MANAGEMENT_CHOICES,
@@ -74,7 +79,8 @@ class Clock(models.Model):
                                    description=self.description,
                                    schedule=self.cron,
                                    time_zone='America/Chicago',
-                                   target_url=f'{ROOT_URL}/tasks/api/clocks/{self.pk}/tick/')
+                                   target_url=f'{ROOT_URL}/tasks/api/clocks/{self.pk}/tick/',
+                                   service_account=self.gcp_service_account)
 
     def clean(self):
         if self.management == MANUAL:
@@ -151,7 +157,7 @@ class Clock(models.Model):
         return True, f'Clock {self.name} paused.'
 
     @ignore_unmanaged_clock
-    def update_clock(self) -> Tuple[bool, str]:
+    def update_clock(self, force_update: Optional[List] = None) -> Tuple[bool, str]:
         old_job, return_message = None, f"Could not retrieve clock {self.new_job().name} " \
                                         f"for editing. (Missing logic branch)."
         new_job = self.new_job()
@@ -167,7 +173,7 @@ class Clock(models.Model):
 
         updated_job = None
         try:
-            updated_job = cloud_scheduler.update_job(old_job, new_job)
+            updated_job = cloud_scheduler.update_job(old_job, new_job, force_update)
         except (Exception, BaseException) as e:
             error_message = cloud_scheduler.get_error(e)
             return_message = f'Could not update clock {new_job.name}: {error_message}'
@@ -210,12 +216,17 @@ class Clock(models.Model):
         return True, f"Clock {self.name} deleted successfully."
 
     def sync_clock(self) -> Tuple[bool, str]:
+        """
+        Force Cloud Scheduler job to match up with current clock.
+
+        :return:
+        """
         self.management = GCP
         success, message = self.start_clock()
         if not success:
             message = f'Could not sync clock: {message}'
             return success, message
-        success, message = self.update_clock()
+        success, message = self.update_clock(force_update=['http_target'])
         if not success:
             message = f'Could not sync clock: {message}'
         return success, message
@@ -285,7 +296,10 @@ class TaskSchedule(models.Model):
     def run(self):
         if not USE_CLOUD_TASKS:
             return self.task.execute().results
-        cloud_tasks.create_task(f'{ROOT_URL}/tasks/api/tasks/{self.task.pk}/execute/')
+        task_execution = TaskExecution.objects.create(task=self.task)
+        create_url = f'{ROOT_URL}/tasks/api/tasks/{self.task.pk}/execute/?task_execution_id={task_execution.pk}'
+        cloud_tasks.create_task(create_url, self.task.name)
+        return task_execution
 
     def __str__(self):
         return f'{self.name}: {self.task}'
@@ -296,16 +310,17 @@ class TaskExecution(models.Model):
     Tasks that have been executed
     """
     _status_choices = {
-        'started': 'Started',
-        'success': 'Success',
-        'failure': 'Failure',
+        PENDING: 'Pending',
+        STARTED: 'Started',
+        SUCCESS: 'Success',
+        FAILURE: 'Failure',
     }
     STATUS_CHOICES = (
         (key, value) for key, value in _status_choices.items()
     )
 
     task = models.ForeignKey('tasks.Task', on_delete=models.CASCADE)
-    status = models.CharField(max_length=7, default='started', choices=STATUS_CHOICES)
+    status = models.CharField(max_length=7, default=PENDING, choices=STATUS_CHOICES)
 
     results = JSONField(null=True, blank=True)
 
@@ -319,8 +334,14 @@ class Task(models.Model):
     """
     name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True, help_text="Name of Task")
 
-    def execute(self):
-        task_execution = TaskExecution.objects.create(task=self)
+    def execute(self, task_execution_id: int = None):
+        if task_execution_id is None:
+            task_execution = TaskExecution.objects.create(task=self, status=STARTED)
+        else:
+            task_execution = TaskExecution.objects.get(pk=task_execution_id)
+        task_execution.status = STARTED
+        task_execution.save()
+
         successes = []
         task_results = {'steps': {}}
         steps = self.steps.all()

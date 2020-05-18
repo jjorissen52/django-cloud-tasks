@@ -1,6 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin import register
-from django.urls import reverse
+from django.urls import reverse, path
 from django.utils.html import format_html
 
 from tasks.models import Clock, TaskExecution, TaskSchedule, Task, Step
@@ -44,7 +44,7 @@ class ClockAdmin(admin.ModelAdmin):
             'fields': ('name', 'cron', 'management', 'status', )
         }),
         ('Metadata', {
-            'fields': ('gcp_name', )
+            'fields': ('gcp_name', 'gcp_service_account', )
         })
     )
 
@@ -52,10 +52,17 @@ class ClockAdmin(admin.ModelAdmin):
         TaskScheduleInline,
     )
 
+    actions = ['sync_selected', ]
+
     def get_readonly_fields(self, request, obj=None):
         if not obj or obj.management != MANUAL:
-            return ['status', 'gcp_name']
+            return ['status', 'gcp_name', 'gcp_service_account', ]
         return tuple()
+
+    def sync_selected(self, request, queryset):
+        for clock in queryset:
+            success, message = clock.sync_clock()
+            messages.success(request, message) if success else messages.error(request, message)
 
     def get_actions(self, request):
         actions = super().get_actions(request)

@@ -1,6 +1,7 @@
 import json
 
 from rest_framework import serializers, viewsets, status, authentication
+from rest_framework.reverse import reverse
 from rest_framework.settings import api_settings
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -54,7 +55,6 @@ class ClockViewSet(viewsets.ModelViewSet):
     def tick(self, request, pk=None):
         """
         Execute Tasks associated with the clock on a tick.
-        # TODO: asynchronous execution using Cloud Tasks
 
         :param request:
         :param pk:
@@ -154,7 +154,8 @@ class TaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post', 'get'])
     def execute(self, request, pk=None):
         task = self.get_object()
-        task_execution = task.execute()
+        task_execution_id = request.query_params.get('task_execution_id', None)
+        task_execution = task.execute(task_execution_id)
         return Response(task_execution.results)
 
 
@@ -191,3 +192,17 @@ class TaskScheduleViewSet(viewsets.ModelViewSet):
     """
     queryset = TaskSchedule.objects.all()
     serializer_class = TaskScheduleSerializer
+
+    # allowing GET for use from browser
+    @action(detail=True, methods=['post', 'get'])
+    def run(self, request, pk=None):
+        task_schedule = self.get_object()
+        task_execution = task_schedule.run()
+        if isinstance(task_execution, TaskExecution):
+            return Response({
+                "result": "Execution scheduled.",
+                "task_execution": reverse("tasks:taskexecution-detail",
+                                          kwargs={"pk": task_execution.pk}, request=request)
+            })
+
+        return Response(task_execution.results)

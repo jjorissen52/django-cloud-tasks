@@ -17,7 +17,7 @@ if ROOT_URL is None:
 
 if SERVICE_ACCOUNT is None:
     """
-    To enabled acting as this service account:
+    To enable acting as this service account:
     gcloud iam service-accounts add-iam-policy-binding [SERVICE_ACCOUNT]
         --member [MEMBER_EMAIL] --role roles/iam.serviceAccountUser
     """
