@@ -72,8 +72,9 @@ def create_task(
 
     task['schedule_time'] = pb2_timestamp
     if name:
-        cleaned_name = re.sub(r'[^\w-]', '-', name)
-        task['name'] = client.task_path(PROJECT_ID, REGION, queue, f'{cleaned_name}-{int(scheduled_time.timestamp())}')
+        stamped_name = f'{name}__{scheduled_time.timestamp()}'
+        cleaned_name = re.sub(r'[^\w\d-]', '-', stamped_name)
+        task['name'] = client.task_path(PROJECT_ID, REGION, queue, cleaned_name)
     return client.create_task(full_queue_name, task)
 
 
