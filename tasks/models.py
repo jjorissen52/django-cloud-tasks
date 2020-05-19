@@ -10,7 +10,7 @@ from django.forms import model_to_dict
 from django.utils.timezone import now
 
 from tasks import cloud_scheduler, cloud_tasks
-from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT
+from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT, TIME_ZONE
 from tasks.constants import *
 from tasks import session as requests
 
@@ -81,7 +81,7 @@ class Clock(models.Model):
         return cloud_scheduler.Job(name=self.gcp_name,
                                    description=self.description,
                                    schedule=self.cron,
-                                   time_zone='America/Chicago',
+                                   time_zone=TIME_ZONE,
                                    target_url=f'{ROOT_URL}/tasks/api/clocks/{self.pk}/tick/',
                                    service_account=self.gcp_service_account)
 
