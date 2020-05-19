@@ -8,6 +8,7 @@ from django.db import models
 from django.forms import model_to_dict
 # from django.utils.timezone import now
 from django.utils.timezone import now
+from pydantic.main import BaseModel
 
 from tasks import cloud_scheduler, cloud_tasks
 from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT
@@ -363,22 +364,39 @@ class Task(models.Model):
         task_execution.status = STARTED
         task_execution.save()
 
-        successes = []
         task_results = {'steps': {}}
-        steps = self.steps.all()
-        for step in steps:
+        steps = self.steps.all().order_by('pk')
+        completed = len(steps)
+        for i, step in enumerate(steps):
+            # see the format_response_tuple wrapper to understand format of step.execute() output
             success, status_code, response_dict = step.execute()
-            successes.append(success)
             task_results['steps'].update({
                 step.name: response_dict
             })
+            if not success:
+                completed = i + 1
+                break
+        # iterate over incompleted to indicate neither failure nor success.
+        # loop is empty if completed == len(steps)
+        for i in range(completed, len(steps)):
+            task_results['steps'].update({
+                steps[i].name: {
+                    'summary': model_to_dict(steps[i]),
+                    'response': {
+                        'success': None,
+                        'status': -1,
+                        'content': None,
+                        'is_json': None,
+                    },
+                }
+            })
 
-        num_successes = len(steps) if all(successes) else len(tuple(filter(lambda x: x, successes)))
-        all_completed = num_successes == len(steps)
+        all_completed = completed == len(steps)
         task_results.update({
+            'num_steps': len(steps),
             'all_completed': all_completed,
-            'steps_completed': num_successes,
-            'steps_failed': len(steps) - num_successes,
+            'steps_completed': completed,
+            'steps_failed': len(steps) - completed,
         })
         task_execution.status = SUCCESS if all_completed else FAILURE
         task_execution.results = task_results

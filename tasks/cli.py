@@ -7,6 +7,9 @@ from django import setup
 import functools
 import subprocess
 
+from django.db.models import Q
+from django.urls import reverse
+
 sys.path.insert(0, os.path.abspath(os.getcwd()))
 
 try:
@@ -27,6 +30,10 @@ from tasks.openid import create_token, decode_token
 User = get_user_model()
 
 
+def hardcode_reverse(view_name, args=None, kwargs=None):
+    return f'{conf.ROOT_URL}{reverse(view_name, args=args, kwargs=kwargs)}'
+
+
 def main():
     import fire
 
@@ -41,6 +48,10 @@ def main():
             'executions': {
                 'list': list_executions,
             },
+            'schedules': {
+                'list': list_schedules,
+                'exec': execute_schedule,
+            }
         },
         'clocks': {
             'list': list_clocks,
@@ -80,13 +91,20 @@ def main():
     fire.Fire(exec_map)
 
 
-def list_steps(offset=0, limit=100):
-    return list(models.Step.objects
-                .values("name", "action", "id", "payload", "success_pattern", "task_id", "task__name")[offset:limit])
+def list_steps(offset=0, limit=100, task=None):
+    q = Q() if not task else Q(task__name__iexact=task)
+    return list(
+        models.Step.objects.filter(q).values(
+            "name", "action", "id",
+            "payload", "success_pattern",
+            "task_id", "task__name"
+        )[offset:limit]
+    )
 
 
 def execute_step(name: str):
-    return models.Step.objects.get(name=name).execute()
+    return f'{models.Step.objects.get(name=name).execute()} ' \
+           f'- {hardcode_reverse("admin:tasks_taskexecution_changelist")}'
 
 
 def list_tasks(offset=0, limit=100):
@@ -94,7 +112,8 @@ def list_tasks(offset=0, limit=100):
 
 
 def execute_task(name: str):
-    return models.Task.objects.get(name=name).execute()
+    return f'{models.Task.objects.get(name=name).execute()} ' \
+           f'- {hardcode_reverse("admin:tasks_taskexecution_changelist")}'
 
 
 def list_clocks(offset=0, limit=100):
@@ -130,27 +149,42 @@ def sync_clock(name: str):
     return message
 
 
-def list_schedules(offset=0, limit=100):
-    return list(models.TaskSchedule.objects.values(
-        "id",
-        "name",
-        "enabled",
-        "clock__name",
-        "clock_id",
-        "clock__cron",
-        "task__name",
-        "task_id"
-    )[offset:limit])
+def list_schedules(offset=0, limit=100, clock=None, task=None):
+    q = Q()
+    if clock:
+        q &= Q(clock__name__iexact=clock)
+    if task:
+        q &= Q(task__name__iexact=task)
+    return list(
+        models.TaskSchedule.objects.filter(q).values(
+            "id",
+            "name",
+            "enabled",
+            "clock__name",
+            "clock_id",
+            "clock__cron",
+            "task__name",
+            "task_id"
+        )[offset:limit]
+    )
 
 
-def list_executions(offset=0, limit=100):
-    return list(models.TaskExecution.objects.values(
-        "id",
-        "results",
-        "status",
-        "task__name",
-        "task_id",
-    )[offset:limit])
+def execute_schedule(name: str):
+    return f'{models.TaskSchedule.objects.get(name=name).run()} ' \
+           f'- {hardcode_reverse("admin:tasks_taskexecution_changelist")}'
+
+
+def list_executions(offset=0, limit=100, task=None):
+    q = Q() if not task else Q(task__name__iexact=task)
+    return list(
+        models.TaskExecution.objects.filter(q).values(
+            "id",
+            "results",
+            "status",
+            "task__name",
+            "task_id",
+        )[offset:limit]
+    )
 
 
 def register_service_account(email: str):
@@ -167,7 +201,7 @@ def delete_service_account(email: str):
         User.objects.filter(email__iexact=email).delete()
         return f'Deleted User for service account {email}'
     except User.DoesNotExist:
-       return f'User for service account {email} does not exist.'
+        return f'User for service account {email} does not exist.'
 
 
 def grant_required_roles(email: str):
@@ -201,6 +235,7 @@ def __output(func):
             sys.stdout.flush()
         else:
             return result
+
     return inner
 
 

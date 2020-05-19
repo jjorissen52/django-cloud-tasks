@@ -123,7 +123,8 @@ class TaskExecutionAdmin(admin.ModelAdmin):
     @staticmethod
     def execution_result(obj):
         _results = json.dumps(obj.results, indent=2)
-        _results = _results[:3000]  # limit the size of the output
+        # limit the size of the output to 3000 lines
+        _results = '\n'.join(_results.split('\n')[:3000])
         html_formatter = HtmlFormatter(style='friendly')
         _results = highlight(_results, JsonLexer(), html_formatter)
         return mark_safe(f'<style>{html_formatter.get_style_defs()}</style></br>{_results}')
