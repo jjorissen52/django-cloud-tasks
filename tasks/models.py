@@ -8,7 +8,6 @@ from django.db import models
 from django.forms import model_to_dict
 # from django.utils.timezone import now
 from django.utils.timezone import now
-from pydantic.main import BaseModel
 
 from tasks import cloud_scheduler, cloud_tasks
 from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT

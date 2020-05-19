@@ -1,6 +1,4 @@
-import json
-
-from rest_framework import serializers, viewsets, status, authentication
+from rest_framework import serializers, viewsets, status
 from rest_framework.reverse import reverse
 from rest_framework.settings import api_settings
 from rest_framework.decorators import action
