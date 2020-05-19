@@ -118,7 +118,7 @@ class ClockAdmin(admin.ModelAdmin):
 class TaskExecutionAdmin(admin.ModelAdmin):
     list_display = ('task', 'status', 'queued_time', 'start_time', 'finish_time', )
     exclude = ('results', )
-    readonly_fields = ('execution_result', )
+    readonly_fields = ('task', 'status', 'execution_result', 'queued_time', 'start_time', 'finish_time')
 
     @staticmethod
     def execution_result(obj):
