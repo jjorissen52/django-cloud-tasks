@@ -21,6 +21,7 @@ def ignore_unmanaged_clock(method):
         if self.management == MANUAL:
             return True, f"Skipping action {method.__name__} for manually managed clock {self.name}"
         return method(self, *args, **kwargs)
+
     inner.__name__ = method.__name__
     return inner
 
@@ -341,7 +342,7 @@ class TaskExecution(models.Model):
             self.queued_time = _now
         if self.status == STARTED and not self.start_time:
             self.start_time = _now
-        elif self.status in (SUCCESS, FAILURE, ) and not self.finish_time:
+        elif self.status in (SUCCESS, FAILURE,) and not self.finish_time:
             self.finish_time = _now
         return super().save(force_insert=force_insert, force_update=force_update,
                             using=using, update_fields=update_fields)
@@ -364,31 +365,28 @@ class Task(models.Model):
         task_execution.status = STARTED
         task_execution.save()
 
-        task_results = {'steps': {}}
+        task_results = {'steps': []}
         steps = self.steps.all().order_by('pk')
         completed = len(steps)
+        context = {'datetime': now().isoformat()}
         for i, step in enumerate(steps):
             # see the format_response_tuple wrapper to understand format of step.execute() output
-            success, status_code, response_dict = step.execute()
-            task_results['steps'].update({
-                step.name: response_dict
-            })
+            success, status_code, response_dict = step.execute(context=context)
+            task_results['steps'].append(response_dict)
             if not success:
                 completed = i + 1
                 break
         # iterate over incompleted to indicate neither failure nor success.
         # loop is empty if completed == len(steps)
         for i in range(completed, len(steps)):
-            task_results['steps'].update({
-                steps[i].name: {
-                    'summary': model_to_dict(steps[i]),
-                    'response': {
-                        'success': None,
-                        'status': -1,
-                        'content': None,
-                        'is_json': None,
-                    },
-                }
+            task_results['steps'].append({
+                'summary': model_to_dict(steps[i]),
+                'response': {
+                    'success': None,
+                    'status': -1,
+                    'content': None,
+                    'is_json': None,
+                },
             })
 
         all_completed = completed == len(steps)
@@ -413,6 +411,7 @@ def format_response_tuple(method):
     :param method: method to be wrapped
     :return:
     """
+
     @functools.wraps(method)
     def inner(*args, **kwargs) -> Tuple[bool, int, dict]:
         try:
@@ -437,6 +436,7 @@ def format_response_tuple(method):
             response_dict['response']['error'] = failure_reason
 
         return success, status_code, response_dict
+
     return inner
 
 
@@ -464,7 +464,7 @@ class Step(models.Model):
                                        help_text="Regex corresponding to successful execution")
 
     @format_response_tuple
-    def execute(self, session=None) -> Tuple[dict, bool, int, str, str]:
+    def execute(self, session=None, context=None) -> Tuple[dict, bool, int, str, str]:
         """
         Make a POST request, check the response
         :param session: http session to use for step
@@ -472,9 +472,19 @@ class Step(models.Model):
         """
         step_summary = model_to_dict(self)
         session = requests.create_openid_session(audience=self.action) if not session else session
+        payload = self.payload
+        if payload and context:
+            # payload needs to be a string for regex replacement
+            payload = json.dumps(payload)
+            for key, value in context.items():
+                # replace ${key} in the payload with the corresponding value
+                # from the context
+                payload = re.sub(fr'\${{{key}}}', value, payload)
+            payload = json.loads(payload)
+            step_summary['payload'] = payload
         with session as s:
             http_method = getattr(s, self.method.lower())
-            response = http_method(self.action, data=self.payload)
+            response = http_method(self.action, data=payload)
         # if redirect or some error code
         if response.status_code > 299:
             return step_summary, False, response.status_code, response.text, "HTTP Error"
@@ -482,12 +492,15 @@ class Step(models.Model):
         if self.success_pattern is not None:
             success_regex = re.compile(self.success_pattern)
             # success if our patten matches any part of the response text
-            success = success_regex.search(response.text) is not None
+            match = success_regex.search(response.text)
+            success = match is not None
+            if context and match:
+                context.update(match.groupdict())
             failure_reason = None if success else f"response content did not match success_regex={self.success_pattern}"
         return step_summary, success, response.status_code, response.text, failure_reason
 
     class Meta:
-        unique_together = ("name", "task", )
+        unique_together = ("name", "task",)
 
     def __str__(self):
         return f'{self.name} (of {self.task})'
