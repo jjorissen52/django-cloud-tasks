@@ -1,9 +1,12 @@
 [tool.poetry]
-name = "tasks"
+name = "django-cloud-tasks"
 version = "0.1.0"
 description = ""
 authors = ["jjorissen52 <jjorissen52@gmail.com>"]
 license = "MIT"
+packages = [
+    { include = "tasks" }
+]
 
 [tool.poetry.scripts]
 cloud-tasks = "tasks.cli:main"
