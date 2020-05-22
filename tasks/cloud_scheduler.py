@@ -85,11 +85,12 @@ def get_update_mask(old, new, explicit: Optional[List] = None):
     :return: {'paths': [...]} where the inner list is the list of fields that should be updated.
     """
     _dict = {'paths': []}
+    explicit = explicit if explicit is not None else ()
     # can update the intersection of MUTABLE and the passed attributes
-    paths = set(MUTABLE_JOB_ATTRIBUTES) & set(explicit) if explicit is not None else set(MUTABLE_JOB_ATTRIBUTES)
+    paths = set(MUTABLE_JOB_ATTRIBUTES) & set(explicit) if explicit else set(MUTABLE_JOB_ATTRIBUTES)
     # indicate that the http_target.uri needs to be changed
     update_uri = any([url_field_name in explicit
-                              for url_field_name in ['target_url', 'http_target']])
+                      for url_field_name in ['target_url', 'http_target']])
     for attr in paths:
         if getattr(old, attr, False) != getattr(new, attr, False):
             _dict['paths'].append(attr)

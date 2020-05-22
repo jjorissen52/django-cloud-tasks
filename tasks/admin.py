@@ -59,10 +59,10 @@ class TaskScheduleInline(admin.TabularInline):
 
 @register(Clock)
 class ClockAdmin(admin.ModelAdmin):
-    list_display = ('name', 'cron', 'management', 'status_info', '_actions')
+    list_display = ('name', 'timezone', 'cron', 'management', 'status_info', '_actions')
     fieldsets = (
         (None, {
-            'fields': ('name', 'cron', 'management', 'status', )
+            'fields': ('name', 'timezone', 'cron', 'management', 'status', )
         }),
         ('Metadata', {
             'fields': ('gcp_name', 'gcp_service_account', )
