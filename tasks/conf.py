@@ -8,7 +8,7 @@ QUEUE = getattr(settings, 'TASKS_QUEUE', None)
 USE_CLOUD_TASKS = getattr(settings, 'TASKS_USE_CLOUD_TASKS', bool(QUEUE))
 ROOT_URL = getattr(settings, 'TASKS_ROOT_URL', None)
 SERVICE_ACCOUNT = getattr(settings, 'TASKS_SERVICE_ACCOUNT', None)
-TIME_ZONE = getattr(settings, 'TIME_ZONE', 'UTC')
+TIME_ZONE = getattr(settings, 'TASKS_TIME_ZONE', getattr(settings, 'TIME_ZONE', 'UTC'))
 
 if ROOT_URL is None:
     if SERVICE == 'default':

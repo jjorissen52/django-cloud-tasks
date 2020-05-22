@@ -29,6 +29,9 @@ def ignore_unmanaged_clock(method):
 def default_service_account(): return SERVICE_ACCOUNT
 
 
+def default_timezone(): return TIME_ZONE
+
+
 class Clock(models.Model):
     """
     Create an external time-keeper. Defaults to using Cloud Scheduler.
@@ -67,6 +70,8 @@ class Clock(models.Model):
                                            help_text="Email of GCP service account that this clock ticks as.")
     description = models.TextField(help_text="Description of what the Clock is for. Will be shown in Cloud Console.")
     cron = models.CharField(max_length=30, help_text="Cron-style schedule, (test with https://crontab.guru/)")
+    timezone = models.CharField(max_length=32, default=default_timezone, choices=TIME_ZONES,
+                                help_text="Time zone in which the clock schedule is set.")
     management = models.CharField(max_length=7, default=GCP, choices=MANAGEMENT_CHOICES,
                                   help_text='Whether to automatically or manually control Clock in Cloud Scheduler')
     status = models.CharField(max_length=8, default=RUNNING, choices=STATUS_CHOICES,
@@ -81,7 +86,7 @@ class Clock(models.Model):
         return cloud_scheduler.Job(name=self.gcp_name,
                                    description=self.description,
                                    schedule=self.cron,
-                                   time_zone=TIME_ZONE,
+                                   time_zone=self.timezone,
                                    target_url=f'{ROOT_URL}/tasks/api/clocks/{self.pk}/tick/',
                                    service_account=self.gcp_service_account)
 
