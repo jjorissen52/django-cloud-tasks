@@ -272,6 +272,11 @@ class Clock(models.Model):
             raise cloud_scheduler.JobDeleteError(message)
         return super(Clock, self).delete(using=using, keep_parents=keep_parents)
 
+    class Meta:
+        permissions = (
+            ('timekeeper', 'Can (re)start, pause, sync, and force the tick of a clock'),
+        )
+
     def __str__(self):
         return f'{self.name} ({self._management_choices[self.management]})'
 
@@ -312,6 +317,11 @@ class TaskSchedule(models.Model):
         create_url = f'{ROOT_URL}/tasks/api/tasks/{self.task.pk}/execute/?task_execution_id={task_execution.pk}'
         cloud_tasks.create_task(create_url, self.task.name)
         return task_execution
+
+    class Meta:
+        permissions = (
+            ('run_taskschedule', 'Can run a Task Schedule'),
+        )
 
     def __str__(self):
         return f'{self.name}: {self.task}'
@@ -404,6 +414,11 @@ class Task(models.Model):
         task_execution.results = task_results
         task_execution.save()
         return task_execution
+
+    class Meta:
+        permissions = (
+            ('execute_task', 'Can execute a task'),
+        )
 
     def __str__(self):
         return self.name
@@ -505,6 +520,9 @@ class Step(models.Model):
 
     class Meta:
         unique_together = ("name", "task",)
+        permissions = (
+            ('execute_step', 'Can execute a step'),
+        )
 
     def __str__(self):
         return f'{self.name} (of {self.task})'

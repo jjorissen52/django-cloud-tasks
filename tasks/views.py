@@ -3,6 +3,7 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.views.generic import UpdateView
 from django.contrib import messages
+from django.contrib.auth.mixins import PermissionRequiredMixin
 
 from tasks.models import Clock, Task, TaskSchedule
 from tasks import cloud_scheduler
@@ -10,7 +11,9 @@ from tasks import cloud_scheduler
 from tasks.constants import START, PAUSE, FIX, SYNC
 
 
-class ClockActions(UpdateView):
+class ClockActions(PermissionRequiredMixin, UpdateView):
+
+    permission_required = ('tasks.timekeeper', )
 
     def get(self, request, *args, pk=-1, action=None, **kwargs):
         return self.post(request, *args, pk=pk, action=action, **kwargs)
@@ -47,7 +50,9 @@ class ClockActions(UpdateView):
         return redirect("admin:tasks_clock_changelist")
 
 
-class TaskExecute(UpdateView):
+class TaskExecute(PermissionRequiredMixin, UpdateView):
+
+    permission_required = ('tasks.execute_task', )
 
     def get(self, request, *args, pk=-1, action=None, **kwargs):
         return self.post(request, *args, pk=pk, action=action, **kwargs)
@@ -67,7 +72,9 @@ class TaskExecute(UpdateView):
         return redirect("admin:tasks_task_changelist")
 
 
-class TaskScheduleRun(UpdateView):
+class TaskScheduleRun(PermissionRequiredMixin, UpdateView):
+
+    permission_required = ('tasks.run_taskschedule', )
 
     def get(self, request, *args, pk=-1, action=None, **kwargs):
         return self.post(request, *args, pk=pk, action=action, **kwargs)
