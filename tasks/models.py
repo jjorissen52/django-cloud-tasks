@@ -503,7 +503,7 @@ class Step(models.Model):
             step_summary['payload'] = payload
         with session as s:
             http_method = getattr(s, self.method.lower())
-            response = http_method(self.action, data=payload)
+            response = http_method(self.action, json=payload)
         # if redirect or some error code
         if response.status_code > 299:
             return step_summary, False, response.status_code, response.text, "HTTP Error"
