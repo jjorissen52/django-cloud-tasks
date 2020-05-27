@@ -388,11 +388,11 @@ class Task(models.Model):
             success, status_code, response_dict = step.execute(context=context)
             task_results['steps'].append(response_dict)
             if not success:
-                completed = i + 1
+                completed = i
                 break
         # iterate over incompleted to indicate neither failure nor success.
-        # loop is empty if completed == len(steps)
-        for i in range(completed, len(steps)):
+        # loop is empty if completed + 1 == len(steps)
+        for i in range(completed + 1, len(steps)):
             task_results['steps'].append({
                 'summary': model_to_dict(steps[i]),
                 'response': {
