@@ -174,7 +174,7 @@ class TaskExecutionViewSet(viewsets.ModelViewSet):
     Provides CRUD capabilities to the `TaskExecution` model.
     """
     authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
-    queryset = TaskExecution.objects.all()
+    queryset = TaskExecution.objects.all().order_by('id')
     serializer_class = TaskExecutionSerializer
 
 
