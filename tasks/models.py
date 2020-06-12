@@ -10,6 +10,7 @@ from django.forms import model_to_dict
 from django.utils.timezone import now
 
 from tasks import cloud_scheduler, cloud_tasks
+from tasks.auth import uri_breakdown
 from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT, TIME_ZONE
 from tasks.constants import *
 from tasks import session as requests
@@ -490,7 +491,9 @@ class Step(models.Model):
         :return: success: bool, response.status_code: int, response.text: str
         """
         step_summary = model_to_dict(self)
-        session = requests.create_openid_session(audience=self.action) if not session else session
+        # remove url params as they cannot be part of the audience
+        protocol, url, _ = uri_breakdown(self.action)
+        session = requests.create_openid_session(audience=f'{protocol}://{url}') if not session else session
         payload = self.payload
         if payload and context:
             # payload needs to be a string for regex replacement

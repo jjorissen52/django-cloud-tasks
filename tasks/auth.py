@@ -16,16 +16,17 @@ from google.oauth2 import id_token
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-uri_pattern = r'^https?:\/\/(.*)$'
+uri_pattern = r'(^https?):\/\/([^?]*)\??(.*)$'
 uri_regex = re.compile(uri_pattern)
 
 
-def remove_protocol(uri):
+def uri_breakdown(uri):
     match = uri_regex.match(uri)
     if not match:
-        return None
+        return None, None, None
     else:
-        return match.group(1)
+        # protocol, url, query params
+        return match.group(1), match.group(2), match.group(3)
 
 
 class GoogleOpenIDAuthentication(BaseAuthentication):
@@ -73,7 +74,8 @@ class GoogleOpenIDAuthentication(BaseAuthentication):
         token = SimpleNamespace(**token)
         logging.debug(f'Access attempted with token: {token}')
         # the audience indicated in the token should be the visited URL
-        token_audience, required_audience = remove_protocol(token.aud), remove_protocol(request.build_absolute_uri())
+        __, token_audience, __ = uri_breakdown(token.aud)
+        __, required_audience, __ = uri_breakdown(request.build_absolute_uri())
         if token_audience != required_audience:
             msg = _(f'Authentication failed. Audience {token.aud} did not match auth endpoint {required_audience}.')
             logging.info(msg)
