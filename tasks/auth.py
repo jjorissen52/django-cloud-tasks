@@ -80,7 +80,7 @@ class GoogleOpenIDAuthentication(BaseAuthentication):
             raise exceptions.AuthenticationFailed(msg)
         if not token.iat < now < token.exp:
             msg = _(f'Authentication failed. Token outside of valid window. '
-                    f'Issued {token.iat}, Expires: {token.exo}, Now: {now}')
+                    f'Issued {token.iat}, Expires: {token.exp}, Now: {now}')
             logging.info(msg)
             raise exceptions.AuthenticationFailed(msg)
         try:
