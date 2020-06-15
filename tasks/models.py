@@ -6,14 +6,16 @@ from typing import Tuple, Optional, List
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.forms import model_to_dict
-# from django.utils.timezone import now
 from django.utils.timezone import now
+from django.template import engines
 
 from tasks import cloud_scheduler, cloud_tasks
 from tasks.auth import uri_breakdown
 from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT, TIME_ZONE
 from tasks.constants import *
 from tasks import session as requests
+
+template_engine = engines['django']
 
 
 def ignore_unmanaged_clock(method):
@@ -383,7 +385,13 @@ class Task(models.Model):
         task_results = {'steps': []}
         steps = self.steps.all().order_by('pk')
         completed = len(steps)
-        context = {'datetime': now().isoformat()}
+        _now = now()
+        context = {
+            'datetime': _now,
+            'now': _now,
+            'timestamp': _now.timestamp(),
+            'isodate': _now.isoformat()
+        }
         for i, step in enumerate(steps):
             # see the format_response_tuple wrapper to understand format of step.execute() output
             success, status_code, response_dict = step.execute(context=context)
@@ -501,9 +509,12 @@ class Step(models.Model):
             for key, value in context.items():
                 # replace ${key} in the payload with the corresponding value
                 # from the context
-                payload = re.sub(fr'\${{{key}}}', value, payload)
-            payload = json.loads(payload)
-            step_summary['payload'] = payload
+                if isinstance(value, str):
+                    payload = re.sub(fr'\${{{key}}}', value, payload)
+            # allow django template logic and filters
+            template = template_engine.from_string(payload)
+            payload = template.render(context, None)
+            step_summary['payload'] = json.loads(payload)
         with session as s:
             http_method = getattr(s, self.method.lower())
             response = http_method(self.action, json=payload)
