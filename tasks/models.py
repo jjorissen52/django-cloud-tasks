@@ -514,7 +514,8 @@ class Step(models.Model):
             # allow django template logic and filters
             template = template_engine.from_string(payload)
             payload = template.render(context, None)
-            step_summary['payload'] = json.loads(payload)
+            payload = json.loads(payload)
+            step_summary['payload'] = payload
         with session as s:
             http_method = getattr(s, self.method.lower())
             response = http_method(self.action, json=payload)

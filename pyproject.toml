@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-cloud-tasks"
-version = "0.3.0"
+version = "0.3.1"
 description = ""
 authors = ["jjorissen52 <jjorissen52@gmail.com>"]
 license = "MIT"
