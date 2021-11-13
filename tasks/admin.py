@@ -103,13 +103,19 @@ class ClockAdmin(admin.ModelAdmin):
             action = SYNC
         else:
             assert False, f"Status must be one of {tuple(Clock._status_choices.keys())}, got {obj.status}"
-        url = reverse("tasks:clock_actions", kwargs={'pk': obj.id, 'action': action})
-        return format_html(
-            """
-            <!-- Don't want to use GET, but format_html removes form. -->
-            <a href="{url}" class="button">{text}</a>
-            """,
-            url=url, text=action.title())
+        action_html = format_html('')
+        if obj.status != UNKNOWN:
+            action_html += format_html(
+                '<a href="{url}" class="button">{text}</a>&nbsp;',
+                url=reverse("tasks:clock_actions", kwargs={'pk': obj.id, 'action': action}),
+                text=action.title()
+            )
+        action_html += format_html(
+            '<a href="{url}" class="button">{text}</a>',
+            url=reverse("tasks:clock_actions", kwargs={'pk': obj.id, 'action': SYNC}),
+            text=SYNC.title()
+        )
+        return action_html
 
     _actions.allow_tags = True
     _actions.short_description = 'Actions'
