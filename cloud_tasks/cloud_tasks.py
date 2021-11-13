@@ -12,8 +12,8 @@ from google.cloud import tasks_v2
 from google.cloud.tasks_v2.proto.task_pb2 import Task
 from google.protobuf import timestamp_pb2
 
-from tasks import utils
-from tasks.conf import PROJECT_ID, REGION, SERVICE_ACCOUNT, QUEUE
+from cloud_tasks import utils
+from cloud_tasks.conf import PROJECT_ID, REGION, SERVICE_ACCOUNT, QUEUE
 
 
 def validate_args(func):

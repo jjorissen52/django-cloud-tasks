@@ -22,6 +22,10 @@ SOFTWARE.
 
 import inspect
 
+from django.urls.base import reverse
+
+from cloud_tasks import conf
+
 
 def get_default_args(func):
     signature = inspect.signature(func)
@@ -42,3 +46,7 @@ def named_method_params(method, args, kwargs):
     args_dict = {**dict(zip(args_names, args)), **kwargs}
     params.update(args_dict)
     return params
+
+
+def hardcode_reverse(view_name, args=None, kwargs=None):
+    return f'{conf.ROOT_URL}{reverse(view_name, args=args, kwargs=kwargs)}'

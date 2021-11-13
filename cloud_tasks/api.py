@@ -6,9 +6,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import APIException
 
-from tasks import auth
-from tasks.models import Clock, Step, Task, TaskExecution, TaskSchedule
-from tasks.permissions import DjangoModelPermissionsWithRead, IsTimekeeper, StepExecutor, TaskExecutor
+from cloud_tasks import auth
+from cloud_tasks.models import Clock, Step, Task, TaskExecution, TaskSchedule
+from cloud_tasks.permissions import DjangoModelPermissionsWithRead, IsTimekeeper, StepExecutor, TaskExecutor
 
 
 class TestGoogleOpenIDAuth(APIView):
@@ -212,7 +212,7 @@ class TaskScheduleViewSet(viewsets.ModelViewSet):
                 "task_execution": {
                     'canonical': reverse("tasks:taskexecution-detail",
                                          request=request, kwargs={"pk": task_execution.pk}),
-                    'admin': reverse("admin:tasks_taskexecution_change",
+                    'admin': reverse("admin:cloud_tasks_taskexecution_change",
                                      request=request, kwargs={"object_id": task_execution.pk}),
                 }
             })

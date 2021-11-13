@@ -18,11 +18,11 @@ class IsTimekeeper(permissions.BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        return user.is_authenticated and user.has_perm('tasks.timekeeper')
+        return user.is_authenticated and user.has_perm('cloud_tasks.timekeeper')
 
 
 class MultiPerm(permissions.BasePermission):
-    any_of = ["tasks.timekeeper"]
+    any_of = ["cloud_tasks.timekeeper"]
 
     @property
     def message(self):
@@ -34,8 +34,9 @@ class MultiPerm(permissions.BasePermission):
 
 
 class TaskExecutor(MultiPerm):
-    any_of = ["tasks.timekeeper", "tasks.run_taskschedule", "tasks.execute_task"]
+    any_of = ["cloud_tasks.timekeeper", "cloud_tasks.run_taskschedule", "cloud_tasks.execute_task"]
 
 
 class StepExecutor(permissions.BasePermission):
-    any_of = ["tasks.timekeeper", "tasks.run_taskschedule", "tasks.execute_task", "tasks.execute_step"]
+    any_of = ["cloud_tasks.timekeeper", "cloud_tasks.run_taskschedule", "cloud_tasks.execute_task",
+              "cloud_tasks.execute_step"]

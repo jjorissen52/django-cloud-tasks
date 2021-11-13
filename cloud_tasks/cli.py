@@ -8,7 +8,8 @@ import functools
 import subprocess
 
 from django.db.models import Q
-from django.urls import reverse
+
+from cloud_tasks.utils import hardcode_reverse
 
 sys.path.insert(0, os.path.abspath(os.getcwd()))
 
@@ -23,15 +24,11 @@ except ModuleNotFoundError as e:
 
 from django.contrib.auth import get_user_model
 
-import tasks.models as models
-from tasks import cloud_tasks, conf
-from tasks.openid import create_token, decode_token
+import cloud_tasks.models as models
+from cloud_tasks import cloud_tasks, conf
+from cloud_tasks.openid import create_token, decode_token
 
 User = get_user_model()
-
-
-def hardcode_reverse(view_name, args=None, kwargs=None):
-    return f'{conf.ROOT_URL}{reverse(view_name, args=args, kwargs=kwargs)}'
 
 
 def main():
@@ -104,7 +101,7 @@ def list_steps(offset=0, limit=100, task=None):
 
 def execute_step(name: str):
     return f'{models.Step.objects.get(name=name).execute()} ' \
-           f'- {hardcode_reverse("admin:tasks_taskexecution_changelist")}'
+           f'- {hardcode_reverse("admin:cloud_tasks_taskexecution_changelist")}'
 
 
 def list_tasks(offset=0, limit=100):
@@ -113,7 +110,7 @@ def list_tasks(offset=0, limit=100):
 
 def execute_task(name: str):
     return f'{models.Task.objects.get(name=name).execute()} ' \
-           f'- {hardcode_reverse("admin:tasks_taskexecution_changelist")}'
+           f'- {hardcode_reverse("admin:cloud_tasks_taskexecution_changelist")}'
 
 
 def list_clocks(offset=0, limit=100):
@@ -171,7 +168,7 @@ def list_schedules(offset=0, limit=100, clock=None, task=None):
 
 def execute_schedule(name: str):
     return f'{models.TaskSchedule.objects.get(name=name).run()} ' \
-           f'- {hardcode_reverse("admin:tasks_taskexecution_changelist")}'
+           f'- {hardcode_reverse("admin:cloud_tasks_taskexecution_changelist")}'
 
 
 def list_executions(offset=0, limit=100, task=None):

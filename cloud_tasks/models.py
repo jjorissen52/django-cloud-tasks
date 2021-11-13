@@ -10,11 +10,11 @@ from django.forms import model_to_dict
 from django.utils.timezone import now
 from django.template import engines
 
-from tasks import cloud_scheduler, cloud_tasks
-from tasks.auth import uri_breakdown
-from tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT, TIME_ZONE
-from tasks.constants import *
-from tasks import session as requests
+from cloud_tasks import cloud_scheduler, cloud_tasks, utils
+from cloud_tasks.auth import uri_breakdown
+from cloud_tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT, TIME_ZONE
+from cloud_tasks.constants import *
+from cloud_tasks import session as requests
 
 template_engine = engines['django']
 
@@ -93,7 +93,7 @@ class Clock(models.Model):
                                    description=self.description,
                                    schedule=self.cron,
                                    time_zone=self.timezone,
-                                   target_url=f'{ROOT_URL}/tasks/api/clocks/{self.pk}/tick/',
+                                   target_url=utils.hardcode_reverse('cloud_tasks:clock-tick', (), dict(pk=self.pk)),
                                    service_account=self.gcp_service_account)
 
     def clean(self):
@@ -293,7 +293,7 @@ class TaskSchedule(models.Model):
     """
 
     name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True, help_text="Name of Task Schedule")
-    task = models.ForeignKey('tasks.Task', on_delete=models.PROTECT, related_name='schedules')
+    task = models.ForeignKey('cloud_tasks.Task', on_delete=models.PROTECT, related_name='schedules')
 
     clock = models.ForeignKey(Clock, null=True, on_delete=models.SET_NULL, related_name='schedules')
 
@@ -320,7 +320,8 @@ class TaskSchedule(models.Model):
         if not USE_CLOUD_TASKS:
             return self.task.execute()
         task_execution = TaskExecution.objects.create(task=self.task)
-        create_url = f'{ROOT_URL}/tasks/api/tasks/{self.task.pk}/execute/?task_execution_id={task_execution.pk}'
+        create_url = f'{utils.hardcode_reverse("cloud_tasks:task-execute", (), dict(pk=self.task.pk))}' \
+                     f'?task_execution_id={task_execution.pk}'
         cloud_tasks.create_task(create_url, self.task.name)
         return task_execution
 
@@ -347,7 +348,7 @@ class TaskExecution(models.Model):
         (key, value) for key, value in _status_choices.items()
     )
 
-    task = models.ForeignKey('tasks.Task', on_delete=models.CASCADE)
+    task = models.ForeignKey('cloud_tasks.Task', on_delete=models.CASCADE)
     status = models.CharField(max_length=7, default=PENDING, choices=STATUS_CHOICES)
     queued_time = models.DateTimeField()
     start_time = models.DateTimeField(null=True, blank=True)

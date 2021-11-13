@@ -6,7 +6,7 @@ from typing import Optional
 
 from requests import *
 
-from tasks.openid import create_token
+from cloud_tasks.openid import create_token
 
 
 class Session(Session):
@@ -31,5 +31,5 @@ def create_openid_session(audience: Optional[str] = None) -> Session:
     :param audience: audience (receiving url) of the token
     :return: tasks.requests.Session instance
     """
-    token = create_token(audience=audience, quiet=True)
+    token = create_token(audience)
     return Session(auth_token=token)

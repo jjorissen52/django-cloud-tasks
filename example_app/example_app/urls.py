@@ -18,5 +18,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('tasks/', include(('tasks.urls', 'tasks'), namespace='tasks'))
+    path('cloud-tasks/', include('cloud_tasks.urls'))
 ]

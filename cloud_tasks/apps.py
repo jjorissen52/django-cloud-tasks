@@ -2,4 +2,5 @@ from django.apps import AppConfig
 
 
 class TasksConfig(AppConfig):
-    name = 'tasks'
+    name = 'cloud_tasks'
+    verbose_name = 'Cloud Tasks'

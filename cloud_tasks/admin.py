@@ -10,8 +10,8 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
-from tasks.models import Clock, TaskExecution, TaskSchedule, Task, Step
-from tasks.constants import \
+from cloud_tasks.models import Clock, TaskExecution, TaskSchedule, Task, Step
+from cloud_tasks.constants import \
     RUNNING, PAUSED, BROKEN, UNKNOWN, \
     START, PAUSE, FIX, SYNC, \
     GCP, MANUAL
@@ -34,7 +34,7 @@ class TaskAdmin(admin.ModelAdmin):
     )
 
     def _actions(self, obj):
-        url = reverse("tasks:task_execute", kwargs={'pk': obj.id})
+        url = reverse("cloud_tasks:task_execute", kwargs={'pk': obj.id})
         return format_html('<a href="{url}" class="button">Execute</a>', url=url)
 
     _actions.allow_tags = True
@@ -46,7 +46,7 @@ class TaskScheduleAdmin(admin.ModelAdmin):
     list_display = ('name', 'task', 'clock', 'enabled', 'status', '_actions')
 
     def _actions(self, obj):
-        url = reverse("tasks:taskschedule_run", kwargs={'pk': obj.id})
+        url = reverse("cloud_tasks:taskschedule_run", kwargs={'pk': obj.id})
         return format_html('<a href="{url}" class="button">Run</a>', url=url)
 
     _actions.allow_tags = True
@@ -107,12 +107,12 @@ class ClockAdmin(admin.ModelAdmin):
         if obj.status != UNKNOWN:
             action_html += format_html(
                 '<a href="{url}" class="button">{text}</a>&nbsp;',
-                url=reverse("tasks:clock_actions", kwargs={'pk': obj.id, 'action': action}),
+                url=reverse("cloud_tasks:clock_actions", kwargs={'pk': obj.id, 'action': action}),
                 text=action.title()
             )
         action_html += format_html(
             '<a href="{url}" class="button">{text}</a>',
-            url=reverse("tasks:clock_actions", kwargs={'pk': obj.id, 'action': SYNC}),
+            url=reverse("cloud_tasks:clock_actions", kwargs={'pk': obj.id, 'action': SYNC}),
             text=SYNC.title()
         )
         return action_html

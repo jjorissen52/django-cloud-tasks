@@ -1,11 +1,11 @@
 import http
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client, TransactionTestCase, LiveServerTestCase
+from django.test import Client, LiveServerTestCase
 from django.urls import reverse
 
-from tasks import models, session, openid
-from tasks.constants import SUCCESS, FAILURE
+from cloud_tasks import models, openid
+from cloud_tasks.constants import SUCCESS, FAILURE
 
 User = get_user_model()
 
@@ -15,7 +15,7 @@ class TestTaskExecution(LiveServerTestCase):
     def setUp(self) -> None:
         self.client = Client()
         audience = 'http://localhost:8000/'
-        token = openid.create_token(audience=audience)
+        token = openid.create_token(audience)
         email = openid.decode_token(token, audience=audience)['email']
         self.service_account = User.objects.create(username=email, email=email)
 
