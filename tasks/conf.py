@@ -2,7 +2,6 @@ from django.conf import settings
 
 REGION = settings.TASKS_REGION
 PROJECT_ID = settings.TASKS_PROJECT_ID
-SERVICE = settings.TASKS_SERVICE
 QUEUE = getattr(settings, 'TASKS_QUEUE', None)
 # default to True if QUEUE is provided
 USE_CLOUD_TASKS = getattr(settings, 'TASKS_USE_CLOUD_TASKS', bool(QUEUE))
@@ -11,10 +10,10 @@ SERVICE_ACCOUNT = getattr(settings, 'TASKS_SERVICE_ACCOUNT', None)
 TIME_ZONE = getattr(settings, 'TASKS_TIME_ZONE', getattr(settings, 'TIME_ZONE', 'UTC'))
 
 if ROOT_URL is None:
-    if SERVICE == 'default':
+    if settings.TASKS_SERVICE == 'default':
         ROOT_URL = f'https://{PROJECT_ID}.appspot.com'
     else:
-        ROOT_URL = f'https://{SERVICE}-dot-{PROJECT_ID}.appspot.com'
+        ROOT_URL = f'https://{settings.TASKS_SERVICE}-dot-{PROJECT_ID}.appspot.com'
 
 if SERVICE_ACCOUNT is None:
     """
