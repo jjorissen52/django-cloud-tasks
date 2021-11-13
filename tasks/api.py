@@ -8,6 +8,7 @@ from rest_framework.exceptions import APIException
 
 from tasks import auth
 from tasks.models import Clock, Step, Task, TaskExecution, TaskSchedule
+from tasks.permissions import DjangoModelPermissionsWithRead, IsTimekeeper, StepExecutor, TaskExecutor
 
 
 class TestGoogleOpenIDAuth(APIView):
@@ -46,10 +47,11 @@ class ClockViewSet(viewsets.ModelViewSet):
     Provides CRUD capabilities to the `Clock` model.
     """
     authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
+    permission_classes = [DjangoModelPermissionsWithRead]
     queryset = Clock.objects.all()
     serializer_class = ClockSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post', 'get'], permission_classes=[IsTimekeeper])
     def tick(self, request, pk=None):
         """
         Execute Tasks associated with the clock on a tick.
@@ -62,7 +64,7 @@ class ClockViewSet(viewsets.ModelViewSet):
         return Response(clock.tick())
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'])
+    @action(detail=True, methods=['post', 'get'], permission_classes=[IsTimekeeper])
     def start(self, request, pk=None):
         clock = self.get_object()
         success, message = clock.start_clock()
@@ -71,7 +73,7 @@ class ClockViewSet(viewsets.ModelViewSet):
         return Response({"message": message})
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'])
+    @action(detail=True, methods=['post', 'get'], permission_classes=[IsTimekeeper])
     def pause(self, request, pk=None):
         clock = self.get_object()
         success, message = clock.pause_clock()
@@ -79,7 +81,7 @@ class ClockViewSet(viewsets.ModelViewSet):
             raise BrokenClockError(message)
         return Response({"message": message})
 
-    @action(detail=True, methods=['post'], url_path="update")
+    @action(detail=True, methods=['post'], url_path="update", permission_classes=[IsTimekeeper])
     def clock_update(self, request, pk=None):
         clock = self.get_object()
         success, message = clock.update_clock()
@@ -88,7 +90,7 @@ class ClockViewSet(viewsets.ModelViewSet):
         return Response({"message": message})
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'], url_path="delete")
+    @action(detail=True, methods=['post', 'get'], url_path="delete", permission_classes=[IsTimekeeper])
     def clock_delete(self, request, pk=None):
         clock = self.get_object()
         success, message = clock.delete_clock()
@@ -97,7 +99,7 @@ class ClockViewSet(viewsets.ModelViewSet):
         return Response({"message": message})
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'])
+    @action(detail=True, methods=['post', 'get'], permission_classes=[IsTimekeeper])
     def sync(self, request, pk=None):
         clock = self.get_object()
         success, message = clock.sync_clock()
@@ -120,11 +122,12 @@ class StepViewSet(viewsets.ModelViewSet):
     Provides CRUD capabilities to the `Step` model.
     """
     authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
+    permission_classes = [DjangoModelPermissionsWithRead]
     queryset = Step.objects.all()
     serializer_class = StepSerializer
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'])
+    @action(detail=True, methods=['post', 'get'], permission_classes=[StepExecutor])
     def execute(self, request, pk=None):
         step = self.get_object()
         success, status_code, response_dict = step.execute()
@@ -147,11 +150,12 @@ class TaskViewSet(viewsets.ModelViewSet):
     Provides CRUD capabilities to the `Task` model.
     """
     authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
+    permission_classes = [DjangoModelPermissionsWithRead]
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'])
+    @action(detail=True, methods=['post', 'get'], permission_classes=[TaskExecutor])
     def execute(self, request, pk=None):
         task = self.get_object()
         task_execution_id = request.query_params.get('task_execution_id', None)
@@ -174,6 +178,7 @@ class TaskExecutionViewSet(viewsets.ModelViewSet):
     Provides CRUD capabilities to the `TaskExecution` model.
     """
     authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
+    permission_classes = [DjangoModelPermissionsWithRead]
     queryset = TaskExecution.objects.all().order_by('id')
     serializer_class = TaskExecutionSerializer
 
@@ -192,11 +197,12 @@ class TaskScheduleViewSet(viewsets.ModelViewSet):
     Provides CRUD capabilities to the `TaskSchedule` model.
     """
     authentication_classes = [*api_settings.DEFAULT_AUTHENTICATION_CLASSES, auth.GoogleOpenIDAuthentication, ]
+    permission_classes = [DjangoModelPermissionsWithRead]
     queryset = TaskSchedule.objects.all()
     serializer_class = TaskScheduleSerializer
 
     # allowing GET for use from browser
-    @action(detail=True, methods=['post', 'get'])
+    @action(detail=True, methods=['post', 'get'], permission_classes=[TaskExecutor])
     def run(self, request, pk=None):
         task_schedule = self.get_object()
         task_execution = task_schedule.run()
