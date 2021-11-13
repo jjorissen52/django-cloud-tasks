@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import PermissionRequiredMixin
 
 from cloud_tasks.models import Clock, Task, TaskSchedule
-from cloud_tasks import cloud_scheduler
+from cloud_tasks import gscheduler
 
 from cloud_tasks.constants import START, PAUSE, FIX, SYNC
 
@@ -25,9 +25,9 @@ class ClockActions(PermissionRequiredMixin, UpdateView):
             messages.error(request, f"Clock {pk} does not exist. Was it deleted?")
             return redirect("admin:cloud_tasks_clock_changelist")
 
-        except cloud_scheduler.JobRetrieveError as e:
+        except gscheduler.JobRetrieveError as e:
             messages.error(request, f"Could not retrieve the clock from Cloud Scheduler: "
-                                    f"{cloud_scheduler.get_error(e)}")
+                                    f"{gscheduler.get_error(e)}")
             return redirect("admin:cloud_tasks_clock_changelist")
         if action == START:
             success, message = clock.start_clock()

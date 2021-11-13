@@ -10,7 +10,7 @@ from django.forms import model_to_dict
 from django.utils.timezone import now
 from django.template import engines
 
-from cloud_tasks import cloud_scheduler, cloud_tasks, utils
+from cloud_tasks import gscheduler, gtasks, utils
 from cloud_tasks.auth import uri_breakdown
 from cloud_tasks.conf import ROOT_URL, USE_CLOUD_TASKS, SERVICE_ACCOUNT, TIME_ZONE
 from cloud_tasks.constants import *
@@ -89,12 +89,12 @@ class Clock(models.Model):
 
     def new_job(self):
         assert self.pk is not None, "Cannot create job without a primary key."
-        return cloud_scheduler.Job(name=self.gcp_name,
-                                   description=self.description,
-                                   schedule=self.cron,
-                                   time_zone=self.timezone,
-                                   target_url=utils.hardcode_reverse('cloud_tasks:clock-tick', (), dict(pk=self.pk)),
-                                   service_account=self.gcp_service_account)
+        return gscheduler.Job(name=self.gcp_name,
+                              description=self.description,
+                              schedule=self.cron,
+                              time_zone=self.timezone,
+                              target_url=utils.hardcode_reverse('cloud_tasks:clock-tick', (), dict(pk=self.pk)),
+                              service_account=self.gcp_service_account)
 
     def clean(self):
         if self.management == MANUAL:
@@ -118,31 +118,31 @@ class Clock(models.Model):
     @ignore_unmanaged_clock
     def start_clock(self) -> Tuple[bool, str]:
         try:
-            job = cloud_scheduler.get_job(self.gcp_name)
-            job = cloud_scheduler.resume_job(self.gcp_name)
+            job = gscheduler.get_job(self.gcp_name)
+            job = gscheduler.resume_job(self.gcp_name)
 
-        except cloud_scheduler.JobRetrieveError as e:
-            error_message = cloud_scheduler.get_error(e)
+        except gscheduler.JobRetrieveError as e:
+            error_message = gscheduler.get_error(e)
             if "lacks IAM permission" in error_message:
                 return False, f"The GCP service account for the website does not have sufficient " \
                               f"permissions to edit the clock. "
             elif "Job not found" in error_message:
                 job = self.new_job()
                 try:
-                    cloud_scheduler.create_job(job)
-                except cloud_scheduler.JobCreationError as e:
-                    error_message = cloud_scheduler.get_error(e)
+                    gscheduler.create_job(job)
+                except gscheduler.JobCreationError as e:
+                    error_message = gscheduler.get_error(e)
                     self.status = BROKEN
                     self.save(skip_cloud_update=True)
                     return False, f"Clock {job.name} could not be created: {error_message}"
             else:
-                error_message = cloud_scheduler.get_error(e)
+                error_message = gscheduler.get_error(e)
                 self.status = BROKEN
                 self.save(skip_cloud_update=True)
                 return False, f"Encountered unknown error while attempting to create clock " \
                               f"{self.name}: {error_message}"
         except (Exception, BaseException) as e:
-            error_message = cloud_scheduler.get_error(e)
+            error_message = gscheduler.get_error(e)
             self.status = BROKEN
             self.save(skip_cloud_update=True)
             return False, f"Could not (re)start clock {self.name}: {error_message}"
@@ -154,9 +154,9 @@ class Clock(models.Model):
     @ignore_unmanaged_clock
     def pause_clock(self) -> Tuple[bool, str]:
         try:
-            job = cloud_scheduler.get_job(self.gcp_name)
+            job = gscheduler.get_job(self.gcp_name)
         except (Exception, BaseException) as e:
-            error_message = cloud_scheduler.get_error(e)
+            error_message = gscheduler.get_error(e)
             if "Job not found" in error_message:
                 self.status = BROKEN
                 self.save(skip_cloud_update=True)
@@ -166,7 +166,7 @@ class Clock(models.Model):
                 self.save(skip_cloud_update=True)
                 return False, f"Enountered unknown error while attempting to pause clock {self.name}: {error_message}"
         try:
-            cloud_scheduler.pause_job(self.gcp_name)
+            gscheduler.pause_job(self.gcp_name)
         except (Exception, BaseException) as e:
             return False, f"Could not pause Clock {self.name}: {e}"
 
@@ -180,9 +180,9 @@ class Clock(models.Model):
                                         f"for editing. (Missing logic branch)."
         new_job = self.new_job()
         try:
-            old_job = cloud_scheduler.get_job(self.gcp_name)
+            old_job = gscheduler.get_job(self.gcp_name)
         except (Exception, BaseException) as e:
-            error_message = cloud_scheduler.get_error(e)
+            error_message = gscheduler.get_error(e)
             return_message = f'Could not retrieve clock {self.name} ' \
                              f'(alias for {self.gcp_name}) for editing: {error_message}'
 
@@ -191,9 +191,9 @@ class Clock(models.Model):
 
         updated_job = None
         try:
-            updated_job = cloud_scheduler.update_job(old_job, new_job, force_update)
+            updated_job = gscheduler.update_job(old_job, new_job, force_update)
         except (Exception, BaseException) as e:
-            error_message = cloud_scheduler.get_error(e)
+            error_message = gscheduler.get_error(e)
             return_message = f'Could not update clock {new_job.name}: {error_message}'
 
         if updated_job is None:
@@ -207,9 +207,9 @@ class Clock(models.Model):
     def delete_clock(self) -> Tuple[bool, str]:
         job, return_message = None, f"Could not retrieve clock {self.name} for deletion. (Missing logic branch)."
         try:
-            job = cloud_scheduler.get_job(self.gcp_name)
+            job = gscheduler.get_job(self.gcp_name)
         except (Exception, BaseException) as e:
-            error_message = cloud_scheduler.get_error(e)
+            error_message = gscheduler.get_error(e)
             # in case clock was never created
             if "Job not found" in error_message:
                 return True, f"Clock {self.name} deleted successfully."
@@ -220,10 +220,10 @@ class Clock(models.Model):
             return False, return_message
 
         try:
-            cloud_scheduler.delete_job(self.gcp_name)
+            gscheduler.delete_job(self.gcp_name)
             job = True
         except (Exception, BaseException) as e:
-            error_message = cloud_scheduler.get_error(e)
+            error_message = gscheduler.get_error(e)
             return_message = f'Could not delete clock {self.name} ' \
                              f'(alias for {self.gcp_name}): {error_message}'
         if job is None:
@@ -275,7 +275,7 @@ class Clock(models.Model):
         success, message = self.delete_clock()
         if not success:
             message = f'Error encountered while attempting to clean up Clock: {message}'
-            raise cloud_scheduler.JobDeleteError(message)
+            raise gscheduler.JobDeleteError(message)
         return super(Clock, self).delete(using=using, keep_parents=keep_parents)
 
     class Meta:
@@ -322,7 +322,7 @@ class TaskSchedule(models.Model):
         task_execution = TaskExecution.objects.create(task=self.task)
         create_url = f'{utils.hardcode_reverse("cloud_tasks:task-execute", (), dict(pk=self.task.pk))}' \
                      f'?task_execution_id={task_execution.pk}'
-        cloud_tasks.create_task(create_url, self.task.name)
+        gtasks.create_task(create_url, self.task.name)
         return task_execution
 
     class Meta:
