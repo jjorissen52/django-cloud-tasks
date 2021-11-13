@@ -1,3 +1,5 @@
+import logging
+
 import google.auth.transport.requests
 from google.oauth2 import id_token
 
@@ -5,6 +7,8 @@ from tasks.conf import ROOT_URL
 
 DEFAULT_AUDIENCE = f'{ROOT_URL}/api/csv/test-auth/'
 CERTS_URL = 'https://www.googleapis.com/oauth2/v1/certs'
+
+logger = logging.getLogger(__name__)
 
 
 def create_token(audience=None, quiet=True) -> str:
@@ -18,7 +22,7 @@ def create_token(audience=None, quiet=True) -> str:
 
     if audience is None:
         if not quiet:
-            print(f'Audience unset. Defaulting to {DEFAULT_AUDIENCE}')
+            logger.warning(f'Audience unset. Defaulting to {DEFAULT_AUDIENCE}')
         audience = DEFAULT_AUDIENCE
     request = google.auth.transport.requests.Request()
     # https://github.com/googleapis/google-auth-library-python/blob/ca8d98ab2e5277e53ab8df78beb1e75cdf5321e3/google/oauth2/id_token.py#L168-L252

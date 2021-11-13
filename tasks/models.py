@@ -1,6 +1,7 @@
 import functools
 import json
 import re
+import logging
 from typing import Tuple, Optional, List
 
 from django.contrib.postgres.fields import JSONField
@@ -16,6 +17,8 @@ from tasks.constants import *
 from tasks import session as requests
 
 template_engine = engines['django']
+
+logger = logging.getLogger(__name__)
 
 
 def ignore_unmanaged_clock(method):
@@ -265,7 +268,7 @@ class Clock(models.Model):
             if skip_cloud_update:
                 return self
             _, message = self.update_clock()
-            print(message)
+            logger.info(message)
         return self
 
     def delete(self, using=None, keep_parents=False):
